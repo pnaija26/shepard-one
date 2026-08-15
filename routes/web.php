@@ -5,7 +5,6 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\CallbackController;
 use App\Http\Controllers\Auth\MfaController;
-use App\Http\Controllers\Auth\AuthController;
 
 // Public routes
 Route::get('/', function () {
@@ -29,16 +28,7 @@ Route::post('/mfa/setup', [MfaController::class, 'setup']);
 Route::get('/mfa/verify', [MfaController::class, 'showVerify'])->name('mfa.verify');
 Route::post('/mfa/verify', [MfaController::class, 'verify']);
 
-// API routes for authentication
-Route::prefix('api')->group(function () {
-    Route::post('/auth/login', [AuthController::class, 'login']);
-    Route::post('/auth/logout', [AuthController::class, 'logout']);
-    Route::get('/auth/user', [AuthController::class, 'user'])->middleware('auth:sanctum');
-});
-
-// Protected routes - require valid authentication
-Route::middleware(['auth'])->group(function () {
-    Route::get('/dashboard', function () {
-        return view('dashboard');
-    })->name('dashboard');
-});
+// Vue history route; API data remains protected by Sanctum.
+Route::get('/dashboard', function () {
+    return view('dashboard');
+})->name('dashboard');

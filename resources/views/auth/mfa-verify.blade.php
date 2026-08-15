@@ -63,7 +63,7 @@
                         required 
                         autocomplete="one-time-code"
                         placeholder="Enter 6-digit code from your authenticator app"
-                        class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                        class="w-full rounded-lg border border-line px-4 py-2 focus:border-brand focus:ring-2 focus:ring-brand"
                     >
                     <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                         Enter the 6-digit code shown in your authenticator app
@@ -71,14 +71,14 @@
                 </div>
 
                 <div>
-                    <button type="submit" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    <button type="submit" class="flex w-full justify-center rounded-md border border-transparent bg-brand px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2">
                         Verify Code
                     </button>
                 </div>
             </form>
 
             <div class="mt-4 text-center">
-                <a href="{{ route('login') }}" class="text-sm text-blue-600 hover:text-blue-500">
+                <a href="{{ route('login') }}" class="text-sm text-brand hover:text-brand-hover">
                     &larr; Back to Login
                 </a>
             </div>
