@@ -32,23 +32,23 @@
           <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4">Dashboard</h2>
           
           <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div class="bg-blue-50 dark:bg-blue-900/20 p-6 rounded-lg">
-              <h3 class="text-lg font-medium text-blue-800 dark:text-blue-200">Welcome</h3>
-              <p class="mt-2 text-blue-700 dark:text-blue-300">
+            <div class="rounded-lg bg-info-soft p-6">
+              <h3 class="text-lg font-medium text-info-ink">Welcome</h3>
+              <p class="mt-2 text-info-ink">
                 You are successfully logged in to the ShepardOne system.
               </p>
             </div>
             
-            <div class="bg-green-50 dark:bg-green-900/20 p-6 rounded-lg">
-              <h3 class="text-lg font-medium text-green-800 dark:text-green-200">Security Status</h3>
-              <p class="mt-2 text-green-700 dark:text-green-300">
+            <div class="rounded-lg bg-success-soft p-6">
+              <h3 class="text-lg font-medium text-success">Security Status</h3>
+              <p class="mt-2 text-success">
                 MFA is {{ userHasMfa ? 'enrolled' : 'not enrolled' }} for your account.
               </p>
             </div>
             
-            <div class="bg-purple-50 dark:bg-purple-900/20 p-6 rounded-lg">
-              <h3 class="text-lg font-medium text-purple-800 dark:text-purple-200">Role</h3>
-              <p class="mt-2 text-purple-700 dark:text-purple-300">
+            <div class="rounded-lg bg-brand-soft p-6">
+              <h3 class="text-lg font-medium text-brand">Role</h3>
+              <p class="mt-2 text-brand">
                 {{ userRole || 'No role assigned' }}
               </p>
             </div>
@@ -59,7 +59,7 @@
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <button @click="setupMfa" 
                       v-if="!userHasMfa"
-                      class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                      class="rounded-md bg-brand px-4 py-2 text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand">
                 Setup MFA
               </button>
               <button v-else 
@@ -67,13 +67,13 @@
                       disabled>
                 MFA Already Set Up
               </button>
-              <button class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500">
+              <button class="rounded-md bg-brand px-4 py-2 text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand">
                 View Profile
               </button>
-              <button class="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500">
+              <button class="rounded-md bg-brand px-4 py-2 text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand">
                 Settings
               </button>
-              <button class="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-yellow-500">
+              <button class="rounded-md bg-accent px-4 py-2 text-ink hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-accent">
                 Help Center
               </button>
             </div>

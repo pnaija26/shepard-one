@@ -9,23 +9,23 @@
           </p>
         </div>
 
-        <div v-if="errors.length > 0" class="rounded-md bg-red-50 dark:bg-red-900/20 p-4">
+        <div v-if="errors.length > 0" class="rounded-md bg-danger-soft p-4">
           <div class="flex">
             <div class="flex-shrink-0">
-              <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+              <svg class="h-5 w-5 text-danger" viewBox="0 0 20 20" fill="currentColor">
                 <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.75 9.25a.75.75 0 000 1.5h2.5a.75.75 0 000-1.5h-2.5z" clip-rule="evenodd" />
               </svg>
             </div>
             <div class="ml-3">
-              <p class="text-sm text-red-700 dark:text-red-300">{{ errors[0] }}</p>
+              <p class="text-sm text-danger-ink">{{ errors[0] }}</p>
             </div>
           </div>
         </div>
 
         <form @submit.prevent="setupMfa" class="space-y-6">
-          <div class="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
-            <h3 class="text-sm font-medium text-blue-800 dark:text-blue-200">How MFA works</h3>
-            <p class="mt-1 text-sm text-blue-700 dark:text-blue-300">
+          <div class="rounded-lg bg-info-soft p-4">
+            <h3 class="text-sm font-medium text-info-ink">How MFA works</h3>
+            <p class="mt-1 text-sm text-info-ink">
               Multi-factor authentication adds an extra layer of security to your account. 
               You'll need both your password and a code from your authenticator app to sign in.
             </p>
@@ -42,7 +42,7 @@
               required 
               autocomplete="one-time-code"
               placeholder="Enter 6-digit code from your authenticator app"
-              class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+              class="w-full rounded-lg border border-line px-4 py-2 focus:border-brand focus:ring-2 focus:ring-brand"
             >
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
               Enter the 6-digit code shown in your authenticator app
@@ -50,7 +50,7 @@
           </div>
 
           <div>
-            <button type="submit" :disabled="loading" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+            <button type="submit" :disabled="loading" class="flex w-full justify-center rounded-md border border-transparent bg-brand px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2">
               <span v-if="loading">Setting up MFA...</span>
               <span v-else>Complete MFA Setup</span>
             </button>
@@ -58,7 +58,7 @@
         </form>
 
         <div class="mt-4 text-center">
-          <a href="/dashboard" class="text-sm text-blue-600 hover:text-blue-500">
+          <a href="/dashboard" class="text-sm text-brand hover:text-brand-hover">
             &larr; Back to Dashboard
           </a>
         </div>

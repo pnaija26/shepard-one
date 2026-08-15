@@ -52,9 +52,9 @@
             <form method="POST" action="{{ route('mfa.setup') }}" class="space-y-6">
                 @csrf
                 
-                <div class="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
-                    <h3 class="text-sm font-medium text-blue-800 dark:text-blue-200">How MFA works</h3>
-                    <p class="mt-1 text-sm text-blue-700 dark:text-blue-300">
+                <div class="rounded-lg bg-info-soft p-4">
+                    <h3 class="text-sm font-medium text-info-ink">How MFA works</h3>
+                    <p class="mt-1 text-sm text-info-ink">
                         Multi-factor authentication adds an extra layer of security to your account. 
                         You'll need both your password and a code from your authenticator app to sign in.
                     </p>
@@ -71,7 +71,7 @@
                         required 
                         autocomplete="one-time-code"
                         placeholder="Enter 6-digit code from your authenticator app"
-                        class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                        class="w-full rounded-lg border border-line px-4 py-2 focus:border-brand focus:ring-2 focus:ring-brand"
                     >
                     <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                         Enter the 6-digit code shown in your authenticator app
@@ -79,14 +79,14 @@
                 </div>
 
                 <div>
-                    <button type="submit" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    <button type="submit" class="flex w-full justify-center rounded-md border border-transparent bg-brand px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2">
                         Complete MFA Setup
                     </button>
                 </div>
             </form>
 
             <div class="mt-4 text-center">
-                <a href="{{ route('dashboard') }}" class="text-sm text-blue-600 hover:text-blue-500">
+                <a href="{{ route('dashboard') }}" class="text-sm text-brand hover:text-brand-hover">
                     &larr; Back to Dashboard
                 </a>
             </div>

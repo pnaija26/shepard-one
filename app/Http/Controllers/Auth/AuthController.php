@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
-use Laravel\Sanctum\PersonalAccessToken;
 
 class AuthController extends Controller
 {
@@ -25,9 +24,11 @@ class AuthController extends Controller
         ]);
 
         // Check if the user exists and credentials are correct
-        $user = Auth::attempt($request->only('email', 'password'));
-        
-        if (!$user) {
+        $credentials = $request->only('email', 'password');
+        $provider = Auth::guard()->getProvider();
+        $user = $provider->retrieveByCredentials($credentials);
+
+        if (!$user || !$provider->validateCredentials($user, $credentials)) {
             throw ValidationException::withMessages([
                 'email' => ['The provided credentials are incorrect.'],
             ]);
@@ -63,7 +64,7 @@ class AuthController extends Controller
     public function logout(Request $request)
     {
         // Revoke the token that was used to authenticate the request
-        $request->user()->currentAccessToken()->delete();
+        $request->user()->currentAccessToken()?->delete();
 
         return response()->json([
             'message' => 'Successfully logged out'

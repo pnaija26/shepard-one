@@ -11,14 +11,21 @@ const app = createApp(App);
 const pinia = createPinia();
 app.use(pinia);
 
-const authenticatedUser = window.__AUTH_USER__;
-if (authenticatedUser) {
+const bootstrap = async () => {
 	const authStore = useAuthStore(pinia);
-	authStore.user = authenticatedUser;
-	authStore.isAuthenticated = true;
-}
+	const authenticatedUser = window.__AUTH_USER__;
 
-app.use(router);
+	if (authenticatedUser) {
+		authStore.user = authenticatedUser;
+		authStore.isAuthenticated = true;
+	} else {
+		await authStore.fetchUser();
+	}
 
-// Mount the app
-app.mount('#app');
+	app.use(router);
+
+	// Mount the app
+	app.mount('#app');
+};
+
+bootstrap();

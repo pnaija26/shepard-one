@@ -20,6 +20,10 @@ export const useAuthStore = defineStore('auth', {
       
       try {
         const response = await authService.login(credentials);
+
+        if (!response.access_token) {
+          throw new Error(response.message || 'Authentication did not return an access token');
+        }
         
         // Store the access token
         authService.setAccessToken(response.access_token);
@@ -43,11 +47,12 @@ export const useAuthStore = defineStore('auth', {
     async logout() {
       try {
         await authService.logout();
+      } catch (error) {
+        console.error('Logout error:', error);
+      } finally {
         this.user = null;
         this.isAuthenticated = false;
         authService.removeAccessToken();
-      } catch (error) {
-        console.error('Logout error:', error);
       }
     },
 
@@ -68,8 +73,9 @@ export const useAuthStore = defineStore('auth', {
       } catch (error) {
         console.error('Failed to fetch user:', error);
         this.error = error.message || 'Failed to fetch user';
-        // If we can't get user, log out the user
-        this.logout();
+        this.user = null;
+        this.isAuthenticated = false;
+        authService.removeAccessToken();
       } finally {
         this.loading = false;
       }

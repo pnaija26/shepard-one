@@ -1,34 +1,8 @@
 @import 'tailwindcss';
+@import './theme.css';
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
-
-@theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-        'Segoe UI Symbol', 'Noto Color Emoji';
-
-    --color-forest: #123b2a;
-    --color-green: #21835a;
-    --color-gold: #d59b2b;
-    --color-coral: #d8674d;
-    --color-blue: #417aad;
-    --color-ink: #17231e;
-    --color-muted: #68746e;
-    --color-line: #dce3df;
-    --color-canvas: #f4f6f3;
-}
-
-:root {
-    --forest: #123b2a;
-    --green: #21835a;
-    --gold: #d59b2b;
-    --coral: #d8674d;
-    --blue: #417aad;
-    --ink: #17231e;
-    --muted: #68746e;
-    --line: #dce3df;
-    --canvas: #f4f6f3;
-}
 
 html {
     color: var(--ink);
@@ -49,7 +23,7 @@ select {
 }
 
 :focus-visible {
-    outline: 3px solid rgba(33, 131, 90, 0.35);
+    outline: 3px solid var(--focus-ring);
     outline-offset: 2px;
 }
 
