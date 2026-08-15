@@ -1,0 +1,8 @@
+/* CSS for the application */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: 'Nunito', sans-serif;
+}
