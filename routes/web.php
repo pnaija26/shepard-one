@@ -32,3 +32,10 @@ Route::post('/mfa/verify', [MfaController::class, 'verify']);
 Route::get('/dashboard', function () {
     return view('dashboard');
 })->name('dashboard');
+
+// SPA fallback: serve the Vue app shell for any other GET path (history mode),
+// so deep links like /organizations work on direct visit and refresh.
+// API routes live under the /api prefix and are registered first, so they win.
+Route::get('/{any}', function () {
+    return view('dashboard');
+})->where('any', '.*')->name('spa.fallback');

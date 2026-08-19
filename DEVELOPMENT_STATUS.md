@@ -3,6 +3,7 @@
 ## Current Stories:
 1.1: Access the Platform through ShepardOne Identity  
 1.2: Require MFA for Privileged Access
+1.3: Configure the church organization
 
 ## Backend:
 PASS
@@ -39,6 +40,8 @@ None
 - Created API service layer for communication with backend
 - Updated middleware to enforce MFA for privileged users
 - Fixed missing middleware reference in routes
+- Added Organization model and API endpoints for church hierarchy management
+- Implemented hierarchical validation logic for organization structure
 
 ## Dependencies Added:
 - @vitejs/plugin-vue
@@ -49,4 +52,4 @@ None
 - axios
 
 ## Next Story:
-1.3: Configure the church organization
+None - All stories completed

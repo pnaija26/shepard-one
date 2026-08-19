@@ -4,6 +4,8 @@ import { useAuthStore } from '../stores/auth';
 // Lazy load components
 const Login = () => import('../components/LoginForm.vue');
 const Dashboard = () => import('../pages/Dashboard.vue');
+const OrganizationManagement = () => import('../pages/OrganizationManagement.vue');
+const TestPage = () => import('../pages/TestPage.vue');
 
 const routes = [
   {
@@ -21,7 +23,14 @@ const routes = [
     name: 'Dashboard',
     component: Dashboard,
     meta: { requiresAuth: true }
-  }
+  },
+  {
+    path: '/organizations',
+    name: 'OrganizationManagement',
+    component: OrganizationManagement,
+    meta: { requiresAuth: true }
+  },
+
 ];
 
 const router = createRouter({
