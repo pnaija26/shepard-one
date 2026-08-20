@@ -39,4 +39,23 @@ api.interceptors.response.use(
   }
 );
 
+// Extract a human-readable message from an axios/Laravel validation error.
+export function extractApiError(error, fallback = 'Something went wrong') {
+  const data = error?.response?.data;
+
+  // Laravel validation errors: first field's first message is the most useful.
+  if (data && typeof data === 'object' && Array.isArray(data.errors)) {
+    const firstField = Object.values(data.errors)[0];
+    if (firstField?.[0]) return firstField[0];
+  }
+
+  if (typeof data?.message === 'string' && data.message) return data.message;
+  if (error?.message && error.message !== 'Request failed with status code') {
+    // Strip the trailing " (500)" style suffix axios appends.
+    return error.message.replace(/\s*\(\d{3}\)$/, '');
+  }
+
+  return fallback;
+}
+
 export default api;

@@ -5,6 +5,7 @@ import { useAuthStore } from '../stores/auth';
 const Login = () => import('../components/LoginForm.vue');
 const Dashboard = () => import('../pages/Dashboard.vue');
 const OrganizationManagement = () => import('../pages/OrganizationManagement.vue');
+const MemberMovements = () => import('../pages/MemberMovements.vue');
 const TestPage = () => import('../pages/TestPage.vue');
 
 const routes = [
@@ -30,6 +31,12 @@ const routes = [
     component: OrganizationManagement,
     meta: { requiresAuth: true }
   },
+  {
+    path: '/movements',
+    name: 'MemberMovements',
+    component: MemberMovements,
+    meta: { requiresAuth: true }
+  },
 
 ];
 
@@ -38,21 +45,21 @@ const router = createRouter({
   routes
 });
 
-// Navigation guards - using modern Vue Router syntax
-router.beforeEach((to, from, next) => {
+// Navigation guards - using modern Vue Router syntax (return-based, no next())
+router.beforeEach((to) => {
   const authStore = useAuthStore();
-  
+
   // Check if route requires authentication
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     // Redirect to login if not authenticated
-    next('/login');
+    return '/login';
   } else if (to.meta.requiresGuest && authStore.isAuthenticated) {
     // Redirect to dashboard if already authenticated
-    next('/dashboard');
-  } else {
-    // Continue with navigation
-    next();
+    return '/dashboard';
   }
+
+  // Continue with navigation
+  return true;
 });
 
 export default router;

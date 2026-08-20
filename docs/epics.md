@@ -457,6 +457,7 @@ So that administrative access remains protected if a password is compromised.
 
 ### Story 1.3: Configure the Church Organization
 
+
 As an HQ administrator,
 I want to create and maintain the church's organizational hierarchy,
 So that every record and responsibility can be associated with the correct church unit.

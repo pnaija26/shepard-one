@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -22,6 +23,7 @@ class User extends Authenticatable
         'email',
         'password',
         'roles',
+        'branch_id',
         'has_mfa_enrolled',
         'mfa_secret',
     ];
@@ -48,6 +50,31 @@ class User extends Authenticatable
         'roles' => 'array',
         'has_mfa_enrolled' => 'boolean',
     ];
+
+    /**
+     * The branch this user is assigned to (Story 1.4).
+     */
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class, 'branch_id');
+    }
+
+    /**
+     * Church-wide scope: the user has no branch assignment and may see
+     * consolidated data across all branches (HQ view).
+     */
+    public function isChurchWide(): bool
+    {
+        return $this->branch_id === null;
+    }
+
+    /**
+     * Branch-scoped access: the user is assigned to exactly one branch.
+     */
+    public function hasBranchScope(): bool
+    {
+        return $this->branch_id !== null;
+    }
     
     /**
      * Check if user has MFA enrolled

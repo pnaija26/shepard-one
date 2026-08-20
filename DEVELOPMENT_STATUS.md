@@ -4,6 +4,8 @@
 1.1: Access the Platform through ShepardOne Identity  
 1.2: Require MFA for Privileged Access
 1.3: Configure the church organization
+1.4: Isolate Branch Data and Consolidate HQ Views
+1.5: Control Cross-Branch Identity Movement
 
 ## Backend:
 PASS
@@ -42,6 +44,8 @@ None
 - Fixed missing middleware reference in routes
 - Added Organization model and API endpoints for church hierarchy management
 - Implemented hierarchical validation logic for organization structure
+- Story 1.5: added MemberMovementTest (16 tests) covering all three acceptance criteria; fixed BranchAssociationHistory table-name mismatch and a chunkById callback type bug in MemberMovementService
+- Story 1.5 UI: added GET /org/people scoped picker endpoint, api/movement.js + stores/movement.js, MemberMovements.vue page (list/filter/initiate/approve/reject), /movements route and sidebar link
 
 ## Dependencies Added:
 - @vitejs/plugin-vue
@@ -52,4 +56,4 @@ None
 - axios
 
 ## Next Story:
-None - All stories completed
+See docs/epics.md — Stories 1.4 and 1.5 are implemented; remaining stories per the epic backlog.

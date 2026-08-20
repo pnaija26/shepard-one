@@ -54,6 +54,7 @@
 <script setup>
 import { computed } from 'vue'
 import { 
+  ArrowRightLeft,
   BarChart3, 
   Bell, 
   CheckCircle2, 
@@ -104,6 +105,7 @@ const ministryNavigation = [
 
 const organizationNavigation = [
   { label: 'Organization Structure', href: '/organizations', icon: TreePine },
+  { label: 'Member Movements', href: '/movements', icon: ArrowRightLeft },
   { label: 'Branches & Locations', href: '#branches', icon: Building }
 ]
 
