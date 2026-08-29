@@ -6,6 +6,7 @@ use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\MfaController;
 use App\Http\Controllers\Api\MemberMovementController;
 use App\Http\Controllers\Api\OrganizationController;
+use App\Http\Controllers\Api\ConfigurationController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('auth')->group(function () {
@@ -34,4 +35,18 @@ Route::middleware('auth:sanctum')->prefix('org')->group(function () {
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/mfa/setup', [MfaController::class, 'setup']);
     Route::post('/mfa/verify', [MfaController::class, 'verify']);
+});
+
+// Configuration routes
+Route::middleware('auth:sanctum')->prefix('config')->group(function () {
+    Route::get('/', [ConfigurationController::class, 'index']);
+    Route::get('/{key}', [ConfigurationController::class, 'show']);
+    Route::post('/', [ConfigurationController::class, 'store']);
+    Route::put('/{key}', [ConfigurationController::class, 'update']);
+    Route::delete('/{key}', [ConfigurationController::class, 'destroy']);
+    
+    // Categories
+    Route::get('/categories', [ConfigurationController::class, 'categories']);
+    Route::post('/categories', [ConfigurationController::class, 'createCategory']);
+    Route::delete('/categories/{name}', [ConfigurationController::class, 'deleteCategory']);
 });

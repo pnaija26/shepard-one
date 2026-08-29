@@ -6,6 +6,8 @@ const Login = () => import('../components/LoginForm.vue');
 const Dashboard = () => import('../pages/Dashboard.vue');
 const OrganizationManagement = () => import('../pages/OrganizationManagement.vue');
 const MemberMovements = () => import('../pages/MemberMovements.vue');
+const RoleManagement = () => import('../pages/RoleManagement.vue');
+const ConfigurationManagement = () => import('../pages/ConfigurationManagement.vue');
 const TestPage = () => import('../pages/TestPage.vue');
 
 const routes = [
@@ -35,6 +37,18 @@ const routes = [
     path: '/movements',
     name: 'MemberMovements',
     component: MemberMovements,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/roles',
+    name: 'RoleManagement',
+    component: RoleManagement,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/config',
+    name: 'ConfigurationManagement',
+    component: ConfigurationManagement,
     meta: { requiresAuth: true }
   },
 

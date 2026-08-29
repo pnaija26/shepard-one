@@ -106,7 +106,9 @@ const ministryNavigation = [
 const organizationNavigation = [
   { label: 'Organization Structure', href: '/organizations', icon: TreePine },
   { label: 'Member Movements', href: '/movements', icon: ArrowRightLeft },
-  { label: 'Branches & Locations', href: '#branches', icon: Building }
+  { label: 'Branches & Locations', href: '#branches', icon: Building },
+  { label: 'Role Management', href: '/roles', icon: ShieldCheck },
+  { label: 'Configuration', href: '/config', icon: Settings }
 ]
 
 </script>
