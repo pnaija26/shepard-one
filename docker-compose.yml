@@ -61,7 +61,7 @@ x-app-env: &app-env
 
 services:
   nginx:
-    image: ${NGINX_IMAGE:-ghcr.io/OWNER/shepard-one-nginx}:${IMAGE_TAG:-latest}
+    image: ${NGINX_IMAGE:-ghcr.io/pnaija26/shepard-one-nginx}:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: Dockerfile
@@ -86,7 +86,7 @@ services:
       - shepard
 
   app:
-    image: ${APP_IMAGE:-ghcr.io/OWNER/shepard-one}:${IMAGE_TAG:-latest}
+    image: ${APP_IMAGE:-ghcr.io/pnaija26/shepard-one}:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: Dockerfile
@@ -107,7 +107,7 @@ services:
       - shepard
 
   queue:
-    image: ${APP_IMAGE:-ghcr.io/OWNER/shepard-one}:${IMAGE_TAG:-latest}
+    image: ${APP_IMAGE:-ghcr.io/pnaija26/shepard-one}:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: Dockerfile
@@ -135,7 +135,7 @@ services:
       - shepard
 
   scheduler:
-    image: ${APP_IMAGE:-ghcr.io/OWNER/shepard-one}:${IMAGE_TAG:-latest}
+    image: ${APP_IMAGE:-ghcr.io/pnaija26/shepard-one}:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: Dockerfile
@@ -158,7 +158,7 @@ services:
       - shepard
 
   migrate:
-    image: ${APP_IMAGE:-ghcr.io/OWNER/shepard-one}:${IMAGE_TAG:-latest}
+    image: ${APP_IMAGE:-ghcr.io/pnaija26/shepard-one}:${IMAGE_TAG:-latest}
     profiles: ["migrate"]
     environment:
       <<: *app-env

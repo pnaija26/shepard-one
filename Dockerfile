@@ -17,9 +17,11 @@ COPY public ./public
 RUN npm run build
 
 # -----------------------------------------------------------------------------
-# Stage 2: PHP dependencies (Composer)
+# Stage 2: PHP dependencies (Composer) — match runtime PHP major
 # -----------------------------------------------------------------------------
-FROM composer:2 AS vendor
+FROM php:8.4-cli-bookworm AS vendor
+
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /app
 
@@ -35,7 +37,7 @@ RUN composer install \
 # -----------------------------------------------------------------------------
 # Stage 3: Production PHP-FPM runtime
 # -----------------------------------------------------------------------------
-FROM php:8.3-fpm-bookworm AS app
+FROM php:8.4-fpm-bookworm AS app
 
 ARG APP_ENV=production
 ENV APP_ENV=${APP_ENV} \
