@@ -4,9 +4,21 @@ set -eu
 role="${CONTAINER_ROLE:-app}"
 
 echo "[entrypoint] role=${role}"
+php -v | head -n 1 || true
+
+# Fail fast with a clear message if the image PHP is too old for this codebase
+php -r 'exit(version_compare(PHP_VERSION, "8.4.1", ">=") ? 0 : 1);' || {
+    echo "[entrypoint] ERROR: image PHP is older than 8.4.1." >&2
+    echo "[entrypoint] Rebuild with: docker compose --env-file .env.dev build --no-cache app" >&2
+    exit 1
+}
 
 run_as_www() {
-    runuser -u www-data -- "$@"
+    if command -v runuser >/dev/null 2>&1; then
+        runuser -u www-data -- "$@"
+    else
+        su -s /bin/sh www-data -c "$*"
+    fi
 }
 
 # Ensure writable runtime directories exist (named volumes may start empty)
