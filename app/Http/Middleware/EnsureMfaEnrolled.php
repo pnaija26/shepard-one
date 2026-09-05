@@ -2,54 +2,60 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\SecurityAuditLog;
+use App\Services\MfaPolicy;
+use App\Services\SecurityAuditService;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
+/**
+ * Story 1.2 AC1 — privileged users must enroll MFA before privileged access.
+ */
 class EnsureMfaEnrolled
 {
-    /**
-     * Handle an incoming request.
-     *
-     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
-     */
+    public function __construct(
+        private MfaPolicy $policy,
+        private SecurityAuditService $audit,
+    ) {
+    }
+
     public function handle(Request $request, Closure $next): Response
     {
-        // Check if user is authenticated and has MFA enrolled
-        if ($request->user() && $request->user()->has_mfa_enrolled) {
-            // User has MFA enrolled, continue with request
+        $user = $request->user();
+        if (! $user || ! $this->policy->requiresEnrollment($user)) {
             return $next($request);
         }
-        
-        // If user doesn't have MFA enrolled but should (privileged role)
-        // Redirect to MFA enrollment page or deny access based on policy
-        if ($request->user() && $this->isPrivilegedRole($request->user())) {
-            // For now, redirect to MFA setup - in a real implementation,
-            // this would redirect to the MFA enrollment flow
-            return redirect()->route('mfa.setup');
+
+        if ($this->isEnrollmentRoute($request) || $this->tokenAllowsEnrollment($request)) {
+            return $next($request);
         }
-        
-        // If not privileged or already enrolled, proceed normally
-        return $next($request);
+
+        $this->audit->record($user, SecurityAuditLog::EVENT_MFA_ACCESS_DENIED, $request, [
+            'reason' => 'mfa_enrollment_required',
+        ]);
+
+        if ($request->expectsJson() || $request->is('api/*')) {
+            return response()->json([
+                'message' => 'MFA enrollment is required before privileged access.',
+                'requires_mfa_enrollment' => true,
+            ], 403);
+        }
+
+        return redirect()->route('mfa.setup');
     }
-    
-    /**
-     * Check if user has a privileged role that requires MFA
-     */
-    private function isPrivilegedRole($user): bool
+
+    private function isEnrollmentRoute(Request $request): bool
     {
-        // In a real implementation, this would check the user's roles/permissions
-        // For now, we'll assume any admin role or specific role requires MFA
-        $privilegedRoles = ['admin', 'hq_admin', 'system_admin'];
-        
-        if (isset($user->roles) && is_array($user->roles)) {
-            foreach ($user->roles as $role) {
-                if (in_array(strtolower($role), $privilegedRoles)) {
-                    return true;
-                }
-            }
-        }
-        
-        return false;
+        return $request->routeIs('mfa.setup')
+            || $request->is('api/mfa/setup')
+            || $request->is('mfa/setup');
+    }
+
+    private function tokenAllowsEnrollment(Request $request): bool
+    {
+        $token = $request->user()?->currentAccessToken();
+
+        return $token !== null && $token->can('mfa-enrollment');
     }
 }

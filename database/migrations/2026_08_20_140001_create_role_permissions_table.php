@@ -24,16 +24,17 @@ return new class extends Migration
             $table->foreignId('role_id')->constrained()->cascadeOnDelete();
 
             // Scope dimension: global, or an organization-unit type.
-            $table->string('scope_type')->default('global');
+            $table->string('scope_type', 32)->default('global');
             $table->unsignedBigInteger('scope_id')->nullable();
 
             // Granularity dimensions (AC1): module / function / record type.
-            $table->string('module')->nullable();
-            $table->string('function_name')->nullable()->index();
-            $table->string('record_type')->nullable();
+            // Lengths are capped so the composite unique index fits MySQL's 3072-byte limit (utf8mb4).
+            $table->string('module', 64)->nullable();
+            $table->string('function_name', 64)->nullable();
+            $table->string('record_type', 64)->nullable();
 
             // The supported action this row grants ('*' = any action).
-            $table->string('action');
+            $table->string('action', 128);
 
             $table->timestamps();
 

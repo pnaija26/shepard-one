@@ -1,0 +1,44 @@
+# Local development overrides
+# Usage:
+#   cp .env.docker.example .env.docker
+#   # set APP_KEY
+#   docker compose --env-file .env.docker -f docker-compose.yml -f docker-compose.dev.yml up --build -d
+
+services:
+  app:
+    image: shepardone-app:dev
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: app
+      args:
+        APP_ENV: local
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "true"
+      LOG_LEVEL: debug
+      RUN_MIGRATIONS: "true"
+      RUN_OPTIMIZE: "false"
+
+  queue:
+    image: shepardone-app:dev
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "true"
+      RUN_OPTIMIZE: "false"
+
+  scheduler:
+    image: shepardone-app:dev
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "true"
+      RUN_OPTIMIZE: "false"
+
+  nginx:
+    image: shepardone-nginx:dev
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: nginx
+    ports:
+      - "${HTTP_PORT:-8080}:80"

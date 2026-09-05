@@ -6,6 +6,11 @@
       </div>
       <div class="font-medium">{{ organization.name }}</div>
       <div class="text-sm text-gray-500">({{ organization.identifier }})</div>
+      <p v-if="locationSummary || contactSummary" class="w-full text-xs text-gray-500">
+        <span v-if="locationSummary">{{ locationSummary }}</span>
+        <span v-if="locationSummary && contactSummary"> · </span>
+        <span v-if="contactSummary">{{ contactSummary }}</span>
+      </p>
 
       <div v-if="onEdit || onDelete" class="ml-auto flex items-center gap-1">
         <button
@@ -40,6 +45,8 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
+
 const props = defineProps({
   organization: {
     type: Object,
@@ -57,6 +64,20 @@ const props = defineProps({
     type: Function,
     default: null
   }
+})
+
+const locationSummary = computed(() => {
+  const location = props.organization.location
+  if (!location) return ''
+
+  return [location.city, location.state, location.country].filter(Boolean).join(', ')
+})
+
+const contactSummary = computed(() => {
+  const contact = props.organization.primary_contact
+  if (!contact?.name) return ''
+
+  return contact.name
 })
 
 function handleEdit() {

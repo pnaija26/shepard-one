@@ -3,6 +3,10 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\SecurityAuditLog;
+use App\Services\MfaPolicy;
+use App\Services\SecurityAuditService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
@@ -10,26 +14,24 @@ use PragmaRX\Google2FA\Google2FA;
 
 class MfaController extends Controller
 {
-    /**
-     * Show the MFA setup page.
-     *
-     * @return \Illuminate\View\View
-     */
+    public function __construct(
+        private MfaPolicy $policy,
+        private SecurityAuditService $audit,
+    ) {
+    }
+
     public function showSetup()
     {
-        // Check if user is authenticated
-        if (!Auth::check()) {
+        if (! Auth::check()) {
             return redirect()->route('login');
         }
 
         $user = Auth::user();
-        
-        // If user already has MFA enabled, redirect to dashboard
+
         if ($user->hasMfaEnrolled()) {
             return redirect()->route('dashboard');
         }
-        
-        // Generate QR code and secret for setup
+
         $google2fa = new Google2FA();
         $secret = $google2fa->generateSecretKey();
         $qrCodeUrl = $google2fa->getQRCodeImageAsDataUrl(
@@ -37,98 +39,128 @@ class MfaController extends Controller
             $user->email,
             $secret
         );
-        
+
         return view('auth.mfa-setup', [
             'secret' => $secret,
-            'qrCodeUrl' => $qrCodeUrl
+            'qrCodeUrl' => $qrCodeUrl,
         ]);
     }
 
-    /**
-     * Setup MFA for the user.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\RedirectResponse
-     */
     public function setup(Request $request)
     {
-        // Validate request
         $request->validate([
             'otp' => 'required|string|size:6',
-            'secret' => 'required|string'
+            'secret' => 'required|string',
         ]);
 
-        $user = Auth::user();
+        $user = $request->user() ?? Auth::user();
+        if (! $user) {
+            abort(401);
+        }
+
         $google2fa = new Google2FA();
-        
-        // Verify the OTP code
         $valid = $google2fa->verifyKey($request->secret, $request->otp);
-        
-        if (!$valid) {
+
+        if (! $valid) {
+            $this->audit->record($user, SecurityAuditLog::EVENT_MFA_VERIFICATION_FAILED, $request, [
+                'phase' => 'enrollment',
+            ]);
+
             throw ValidationException::withMessages([
                 'otp' => ['The provided OTP code is invalid.'],
             ]);
         }
-        
-        // Enable MFA for the user
+
         $user->update([
             'mfa_secret' => $request->secret,
-            'has_mfa_enrolled' => true
+            'has_mfa_enrolled' => true,
         ]);
-        
-        return redirect()->route('dashboard')->with('message', 'MFA has been enabled successfully.');
+
+        $this->audit->record($user, SecurityAuditLog::EVENT_MFA_ENROLLMENT_COMPLETED, $request);
+
+        $request->user()?->currentAccessToken()?->delete();
+
+        if ($request->expectsJson() || $request->is('api/*')) {
+            if ($this->policy->requiresVerification($user->fresh())) {
+                $token = $user->createToken('mfa-pending', ['mfa-pending'])->plainTextToken;
+
+                return response()->json([
+                    'message' => 'MFA enrolled. Complete verification to access privileged functions.',
+                    'requires_mfa' => true,
+                    'access_token' => $token,
+                    'token_type' => 'Bearer',
+                ]);
+            }
+
+            $token = $user->createToken('auth-token')->plainTextToken;
+
+            return response()->json([
+                'message' => 'MFA has been enabled successfully.',
+                'access_token' => $token,
+                'token_type' => 'Bearer',
+            ]);
+        }
+
+        session(['mfa_verified' => false]);
+
+        return redirect()->route('mfa.verify')->with('message', 'MFA has been enabled. Please verify to continue.');
     }
 
-    /**
-     * Show the MFA verification page.
-     *
-     * @return \Illuminate\View\View
-     */
     public function showVerify()
     {
-        // Check if user is authenticated
-        if (!Auth::check()) {
+        if (! Auth::check()) {
             return redirect()->route('login');
         }
-        
+
         $user = Auth::user();
-        
-        // If user doesn't have MFA enabled, redirect to dashboard
-        if (!$user->hasMfaEnrolled()) {
+
+        if (! $user->hasMfaEnrolled()) {
             return redirect()->route('dashboard');
         }
-        
+
         return view('auth.mfa-verify');
     }
 
-    /**
-     * Verify the MFA code.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\RedirectResponse
-     */
-    public function verify(Request $request)
+    public function verify(Request $request): JsonResponse|\Illuminate\Http\RedirectResponse
     {
-        // Validate request
         $request->validate([
-            'otp' => 'required|string|size:6'
+            'otp' => 'required|string|size:6',
         ]);
 
-        $user = Auth::user();
+        $user = $request->user() ?? Auth::user();
+        if (! $user || ! $user->hasMfaEnrolled()) {
+            abort(401);
+        }
+
         $google2fa = new Google2FA();
-        
-        // Verify the OTP code
         $valid = $google2fa->verifyKey($user->mfa_secret, $request->otp);
-        
-        if (!$valid) {
+
+        if (! $valid) {
+            $this->audit->record($user, SecurityAuditLog::EVENT_MFA_VERIFICATION_FAILED, $request, [
+                'phase' => 'verification',
+            ]);
+
             throw ValidationException::withMessages([
                 'otp' => ['The provided OTP code is invalid.'],
             ]);
         }
-        
-        // Store MFA verification in session
+
+        $this->audit->record($user, SecurityAuditLog::EVENT_MFA_VERIFICATION_SUCCEEDED, $request);
+
+        $request->user()?->currentAccessToken()?->delete();
+
+        if ($request->expectsJson() || $request->is('api/*')) {
+            $token = $user->createToken('auth-token')->plainTextToken;
+
+            return response()->json([
+                'message' => 'MFA verified successfully.',
+                'access_token' => $token,
+                'token_type' => 'Bearer',
+            ]);
+        }
+
         session(['mfa_verified' => true]);
-        
+
         return redirect()->route('dashboard');
     }
 }

@@ -4,6 +4,22 @@
 .env
 .env.backup
 .env.production
+.env.dev
+.env.mobile
+.env.mobile.local
+.env.docker
+
+# Hybrid / Capacitor signing & secrets (Story 12.1)
+*.jks
+*.keystore
+*.p12
+*.mobileprovision
+google-services.json
+GoogleService-Info.plist
+android/key.properties
+android/local.properties
+ios/App/App/GoogleService-Info.plist
+mobile/www
 .phpactor.json
 .phpunit.result.cache
 /.codex

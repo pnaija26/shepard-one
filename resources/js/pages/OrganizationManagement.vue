@@ -2,7 +2,7 @@
   <div class="min-h-screen bg-canvas text-ink">
     <div v-if="drawerOpen" class="fixed inset-0 z-40 bg-ink/45 lg:hidden" aria-hidden="true" @click="drawerOpen = false"></div>
 
-    <Sidebar :drawer-open="drawerOpen" />
+    <Sidebar v-model:drawer-open="drawerOpen" />
 
     <div class="lg:pl-60">
       <header class="sticky top-0 z-30 border-b border-line bg-white/95 backdrop-blur">
@@ -99,6 +99,25 @@
                 <textarea id="org-description" v-model="form.description" rows="3" placeholder="Optional notes about this unit" class="mt-1 block w-full rounded-md border border-line bg-white px-3 py-2 text-sm shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/25"></textarea>
               </div>
 
+              <fieldset class="space-y-3 rounded-md border border-line p-4">
+                <legend class="px-1 text-sm font-medium">Location</legend>
+                <input v-model="form.location.address_line1" type="text" placeholder="Address line 1" class="block w-full rounded-md border border-line bg-white px-3 py-2 text-sm" />
+                <input v-model="form.location.address_line2" type="text" placeholder="Address line 2" class="block w-full rounded-md border border-line bg-white px-3 py-2 text-sm" />
+                <div class="grid gap-3 sm:grid-cols-2">
+                  <input v-model="form.location.city" type="text" placeholder="City" class="rounded-md border border-line bg-white px-3 py-2 text-sm" />
+                  <input v-model="form.location.state" type="text" placeholder="State / region" class="rounded-md border border-line bg-white px-3 py-2 text-sm" />
+                  <input v-model="form.location.postal_code" type="text" placeholder="Postal code" class="rounded-md border border-line bg-white px-3 py-2 text-sm" />
+                  <input v-model="form.location.country" type="text" placeholder="Country" class="rounded-md border border-line bg-white px-3 py-2 text-sm" />
+                </div>
+              </fieldset>
+
+              <fieldset class="space-y-3 rounded-md border border-line p-4">
+                <legend class="px-1 text-sm font-medium">Primary contact</legend>
+                <input v-model="form.primary_contact.name" type="text" placeholder="Contact name" class="block w-full rounded-md border border-line bg-white px-3 py-2 text-sm" />
+                <input v-model="form.primary_contact.email" type="email" placeholder="Contact email" class="block w-full rounded-md border border-line bg-white px-3 py-2 text-sm" />
+                <input v-model="form.primary_contact.phone" type="text" placeholder="Contact phone" class="block w-full rounded-md border border-line bg-white px-3 py-2 text-sm" />
+              </fieldset>
+
               <button type="submit" :disabled="saving" class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-brand px-4 text-sm font-semibold text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60">
                 {{ saving ? (editing ? 'Saving…' : 'Creating…') : editing ? 'Save changes' : 'Create organization' }}
               </button>
@@ -151,7 +170,30 @@ const handleLogout = async () => {
 onMounted(() => window.addEventListener('resize', closeDrawerOnDesktop));
 onBeforeUnmount(() => window.removeEventListener('resize', closeDrawerOnDesktop));
 
-const form = reactive({ name: '', type: 'branch', identifier: '', parent_id: null, description: '' });
+const emptyLocation = () => ({
+  address_line1: '',
+  address_line2: '',
+  city: '',
+  state: '',
+  postal_code: '',
+  country: '',
+});
+
+const emptyPrimaryContact = () => ({
+  name: '',
+  email: '',
+  phone: '',
+});
+
+const form = reactive({
+  name: '',
+  type: 'branch',
+  identifier: '',
+  parent_id: null,
+  description: '',
+  location: emptyLocation(),
+  primary_contact: emptyPrimaryContact(),
+});
 
 // Parent dropdown excludes the organization being edited (it can't be its own parent).
 const parentOptions = computed(() => all.value.filter((org) => !editing.value || org.id !== editing.value.id));
@@ -202,8 +244,24 @@ function focusNameField() {
   nameInput.value?.focus();
 }
 
+function pruneEmptyObject(obj) {
+  const cleaned = Object.fromEntries(
+    Object.entries(obj).filter(([, value]) => value !== null && value !== undefined && String(value).trim() !== ''),
+  );
+
+  return Object.keys(cleaned).length ? cleaned : null;
+}
+
 function resetForm() {
-  Object.assign(form, { name: '', type: 'branch', identifier: '', parent_id: null, description: '' });
+  Object.assign(form, {
+    name: '',
+    type: 'branch',
+    identifier: '',
+    parent_id: null,
+    description: '',
+    location: emptyLocation(),
+    primary_contact: emptyPrimaryContact(),
+  });
 }
 
 function startCreate() {
@@ -221,7 +279,9 @@ function startEdit(org) {
     type: org.type || 'branch',
     identifier: org.identifier || '',
     parent_id: org.parent_id ?? null,
-    description: org.description || ''
+    description: org.description || '',
+    location: { ...emptyLocation(), ...(org.location || {}) },
+    primary_contact: { ...emptyPrimaryContact(), ...(org.primary_contact || {}) },
   });
   focusNameField();
 }
@@ -235,7 +295,12 @@ function cancelEdit() {
 async function handleSubmit() {
   saving.value = true;
   clearFeedback();
-  const payload = { ...form, parent_id: form.parent_id || null };
+  const payload = {
+    ...form,
+    parent_id: form.parent_id || null,
+    location: pruneEmptyObject(form.location),
+    primary_contact: pruneEmptyObject(form.primary_contact),
+  };
   try {
     if (editing.value) {
       await store.updateOrganization(editing.value.id, payload);

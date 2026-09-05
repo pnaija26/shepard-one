@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">ShepardOne</string>
+    <string name="title_activity_main">ShepardOne</string>
+    <string name="package_name">church.shepardone.app</string>
+    <string name="custom_url_scheme">church.shepardone.app</string>
+</resources>

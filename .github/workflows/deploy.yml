@@ -1,0 +1,243 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches: [main, master, develop]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        options:
+          - production
+          - development
+        default: production
+      image_tag:
+        description: "Optional image tag override (default: git SHA)"
+        required: false
+        type: string
+      skip_tests:
+        description: "Skip CI tests (emergency only)"
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.skip_tests) }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: mbstring, bcmath, ctype, fileinfo, openssl, pdo, pdo_sqlite, tokenizer, xml, curl, zip, redis, gd, intl, pcntl
+          coverage: none
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install NPM dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Build frontend assets
+        run: npm run build
+
+      - name: Prepare Laravel
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          mkdir -p database
+          touch database/database.sqlite
+
+      - name: Run tests
+        run: php artisan test
+
+  build:
+    name: Build and push images
+    runs-on: ubuntu-latest
+    needs: [test]
+    if: always() && (needs.test.result == 'success' || needs.test.result == 'skipped')
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      image_tag: ${{ steps.meta.outputs.version }}
+      app_image: ${{ steps.meta.outputs.app_image }}
+      nginx_image: ${{ steps.meta.outputs.nginx_image }}
+      deploy_env: ${{ steps.target.outputs.deploy_env }}
+      channel_tag: ${{ steps.target.outputs.channel_tag }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve deploy target
+        id: target
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            ENV="${{ inputs.environment }}"
+          elif [ "${{ github.ref }}" = "refs/heads/develop" ]; then
+            ENV="development"
+          else
+            ENV="production"
+          fi
+          echo "deploy_env=${ENV}" >> "$GITHUB_OUTPUT"
+          if [ "$ENV" = "development" ]; then
+            echo "channel_tag=dev" >> "$GITHUB_OUTPUT"
+          else
+            echo "channel_tag=latest" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Lowercase image names
+        id: image
+        run: |
+          APP_NAME=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          echo "app=${{ env.REGISTRY }}/${APP_NAME}" >> "$GITHUB_OUTPUT"
+          echo "nginx=${{ env.REGISTRY }}/${APP_NAME}-nginx" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve tag
+        id: meta
+        run: |
+          if [ -n "${{ inputs.image_tag }}" ]; then
+            TAG="${{ inputs.image_tag }}"
+          else
+            TAG="sha-${GITHUB_SHA::12}"
+          fi
+          echo "version=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "app_image=${{ steps.image.outputs.app }}" >> "$GITHUB_OUTPUT"
+          echo "nginx_image=${{ steps.image.outputs.nginx }}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push app image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          target: app
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.app_image }}:${{ steps.meta.outputs.version }}
+            ${{ steps.meta.outputs.app_image }}:${{ steps.target.outputs.channel_tag }}
+          cache-from: type=gha,scope=app
+          cache-to: type=gha,mode=max,scope=app
+
+      - name: Build and push nginx image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          target: nginx
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.nginx_image }}:${{ steps.meta.outputs.version }}
+            ${{ steps.meta.outputs.nginx_image }}:${{ steps.target.outputs.channel_tag }}
+          cache-from: type=gha,scope=nginx
+          cache-to: type=gha,mode=max,scope=nginx
+
+  deploy:
+    name: Deploy to VPS (${{ needs.build.outputs.deploy_env }})
+    runs-on: ubuntu-latest
+    needs: [build]
+    environment: ${{ needs.build.outputs.deploy_env }}
+
+    steps:
+      - name: Checkout (compose + deploy scripts)
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          test -n "$VPS_HOST"
+          test -n "$VPS_USER"
+          test -n "$VPS_SSH_KEY"
+          mkdir -p ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          cat > ~/.ssh/config <<EOF
+          Host vps
+            HostName ${VPS_HOST}
+            User ${VPS_USER}
+            Port ${VPS_PORT:-22}
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking accept-new
+          EOF
+
+      - name: Resolve remote path and env file
+        id: remote
+        env:
+          DEPLOY_ENV: ${{ needs.build.outputs.deploy_env }}
+          VPS_PROD_PATH: ${{ secrets.VPS_PROD_PATH }}
+          VPS_DEV_PATH: ${{ secrets.VPS_DEV_PATH }}
+          VPS_DEPLOY_PATH: ${{ secrets.VPS_DEPLOY_PATH }}
+        run: |
+          if [ "$DEPLOY_ENV" = "development" ]; then
+            echo "path=${VPS_DEV_PATH:-/var/www/dev}" >> "$GITHUB_OUTPUT"
+            echo "env_file=.env.dev" >> "$GITHUB_OUTPUT"
+            echo "environment=dev" >> "$GITHUB_OUTPUT"
+          else
+            echo "path=${VPS_PROD_PATH:-${VPS_DEPLOY_PATH:-/var/www/prod}}" >> "$GITHUB_OUTPUT"
+            echo "env_file=.env.production" >> "$GITHUB_OUTPUT"
+            echo "environment=prod" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Sync compose files to VPS
+        env:
+          REMOTE_DIR: ${{ steps.remote.outputs.path }}
+        run: |
+          ssh vps "mkdir -p ${REMOTE_DIR}/scripts"
+          scp docker-compose.yml vps:"${REMOTE_DIR}/docker-compose.yml"
+          scp scripts/deploy.sh vps:"${REMOTE_DIR}/scripts/deploy.sh"
+          ssh vps "chmod +x ${REMOTE_DIR}/scripts/deploy.sh"
+
+      - name: Pull images and roll out
+        env:
+          IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
+          APP_IMAGE: ${{ needs.build.outputs.app_image }}
+          NGINX_IMAGE: ${{ needs.build.outputs.nginx_image }}
+          REMOTE_DIR: ${{ steps.remote.outputs.path }}
+          ENVIRONMENT: ${{ steps.remote.outputs.environment }}
+          GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
+        run: |
+          TOKEN="${GHCR_READ_TOKEN:-${{ secrets.GITHUB_TOKEN }}}"
+          ssh vps "cd ${REMOTE_DIR} && \
+            export APP_IMAGE='${APP_IMAGE}' \
+                   NGINX_IMAGE='${NGINX_IMAGE}' \
+                   IMAGE_TAG='${IMAGE_TAG}' \
+                   ENVIRONMENT='${ENVIRONMENT}' \
+                   GHCR_USER='${{ github.actor }}' \
+                   GHCR_TOKEN='${TOKEN}' && \
+            ./scripts/deploy.sh"

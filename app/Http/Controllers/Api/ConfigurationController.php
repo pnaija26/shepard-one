@@ -3,204 +3,153 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Setting;
 use App\Services\ConfigurationService;
-use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
+/**
+ * Story 1.7: governed platform configuration API.
+ */
 class ConfigurationController extends Controller
 {
-    protected $configurationService;
-
-    public function __construct(ConfigurationService $configurationService)
-    {
-        $this->configurationService = $configurationService;
+    public function __construct(
+        private ConfigurationService $configuration,
+    ) {
     }
 
-    /**
-     * Get all configuration settings
-     */
     public function index(Request $request): JsonResponse
     {
-        $category = $request->query('category');
-        
-        if ($category) {
-            $settings = $this->configurationService->getByCategory($category);
-        } else {
-            $settings = $this->configurationService->getAllSettings();
-        }
-        
-        return response()->json([
-            'success' => true,
-            'data' => $settings
-        ]);
+        $settings = $this->configuration->listFor(
+            $request->user(),
+            $request->query('category'),
+        );
+
+        return response()->json(['data' => $settings]);
     }
 
-    /**
-     * Get a specific configuration setting
-     */
-    public function show($key): JsonResponse
+    public function show(Request $request, string $key): JsonResponse
     {
-        $setting = $this->configurationService->get($key);
-        
+        $settings = $this->configuration->listFor($request->user());
+        $setting = $settings->firstWhere('key', $key);
+
         if ($setting === null) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Setting not found'
-            ], 404);
+            return response()->json(['message' => 'Setting not found.'], 404);
         }
-        
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'key' => $key,
-                'value' => $setting
-            ]
-        ]);
+
+        return response()->json(['data' => $setting]);
     }
 
-    /**
-     * Create or update a configuration setting
-     */
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'key' => 'required|string|unique:settings,key',
+            'key' => 'required|string|max:191|unique:settings,key',
             'value' => 'required',
             'type' => 'string|in:string,integer,boolean,json',
-            'category' => 'string',
-            'description' => 'string|nullable',
-            'is_public' => 'boolean'
+            'category' => 'nullable|string|max:64',
+            'description' => 'nullable|string',
+            'is_public' => 'boolean',
+            'is_locked' => 'boolean',
+            'branch_id' => 'nullable|integer|exists:organizations,id',
         ]);
 
-        $setting = $this->configurationService->set(
-            $validated['key'],
-            $validated['value'],
-            $validated['type'] ?? 'string',
-            $validated['category'],
-            $validated['description']
-        );
+        $setting = $this->configuration->create($request->user(), $validated);
 
         return response()->json([
-            'success' => true,
-            'message' => 'Setting saved successfully',
-            'data' => $setting
-        ]);
+            'data' => $this->configuration->formatSetting($setting),
+        ], 201);
     }
 
-    /**
-     * Update a configuration setting
-     */
-    public function update(Request $request, $key): JsonResponse
+    public function update(Request $request, string $key): JsonResponse
     {
         $validated = $request->validate([
             'value' => 'required',
-            'type' => 'string|in:string,integer,boolean,json',
-            'category' => 'string',
-            'description' => 'string|nullable',
-            'is_public' => 'boolean'
+            'type' => 'sometimes|string|in:string,integer,boolean,json',
+            'description' => 'nullable|string',
+            'publish' => 'boolean',
         ]);
 
-        // Check if setting exists
-        $existing = $this->configurationService->get($key);
-        
-        if ($existing === null) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Setting not found'
-            ], 404);
+        if ($request->boolean('publish')) {
+            $this->configuration->stage($request->user(), $key, $validated['value'], $validated);
+            $setting = $this->configuration->publish($request->user(), $key);
+        } else {
+            $setting = $this->configuration->stage($request->user(), $key, $validated['value'], $validated);
         }
 
-        $setting = $this->configurationService->set(
+        return response()->json([
+            'data' => $this->configuration->formatSetting($setting),
+        ]);
+    }
+
+    public function publish(Request $request, string $key): JsonResponse
+    {
+        $setting = $this->configuration->publish($request->user(), $key);
+
+        return response()->json([
+            'data' => $this->configuration->formatSetting($setting),
+            'message' => 'Configuration published successfully.',
+        ]);
+    }
+
+    public function destroy(Request $request, string $key): JsonResponse
+    {
+        $validated = $request->validate([
+            'archive' => 'boolean',
+        ]);
+
+        $this->configuration->delete(
+            $request->user(),
             $key,
-            $validated['value'],
-            $validated['type'] ?? 'string',
-            $validated['category'],
-            $validated['description']
+            $request->boolean('archive'),
         );
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Setting updated successfully',
-            'data' => $setting
-        ]);
+        return response()->json(['message' => 'Setting removed successfully.']);
     }
 
-    /**
-     * Delete a configuration setting
-     */
-    public function destroy($key): JsonResponse
+    public function categories(Request $request): JsonResponse
     {
-        $deleted = $this->configurationService->delete($key);
-        
-        if (!$deleted) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Setting not found'
-            ], 404);
+        if (! app(\App\Services\AuthorizationService::class)->allows($request->user(), 'config.read')) {
+            abort(403);
         }
 
         return response()->json([
-            'success' => true,
-            'message' => 'Setting deleted successfully'
+            'data' => $this->configuration->getAllCategories(),
         ]);
     }
 
-    /**
-     * Get all configuration categories
-     */
-    public function categories(): JsonResponse
-    {
-        $categories = $this->configurationService->getAllCategories();
-        
-        return response()->json([
-            'success' => true,
-            'data' => $categories
-        ]);
-    }
-
-    /**
-     * Create a new configuration category
-     */
     public function createCategory(Request $request): JsonResponse
     {
-        $validated = $request->validate([
-            'name' => 'required|string|unique:configuration_categories,name',
-            'description' => 'string|nullable',
-            'key_prefix' => 'string|nullable',
-            'is_system' => 'boolean'
-        ]);
-
-        $category = $this->configurationService->createCategory(
-            $validated['name'],
-            $validated['description'],
-            $validated['key_prefix'],
-            $validated['is_system'] ?? false
-        );
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Category created successfully',
-            'data' => $category
-        ]);
-    }
-
-    /**
-     * Delete a configuration category
-     */
-    public function deleteCategory($name): JsonResponse
-    {
-        $deleted = $this->configurationService->deleteCategory($name);
-        
-        if (!$deleted) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Category not found or cannot be deleted'
-            ], 404);
+        if (! app(\App\Services\AuthorizationService::class)->allows($request->user(), 'config.manage')) {
+            abort(403);
         }
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Category deleted successfully'
+        $validated = $request->validate([
+            'name' => 'required|string|max:64|unique:configuration_categories,name',
+            'description' => 'nullable|string',
+            'key_prefix' => 'nullable|string|max:64',
+            'is_system' => 'boolean',
         ]);
+
+        $category = $this->configuration->createCategory(
+            $validated['name'],
+            $validated['description'] ?? null,
+            $validated['key_prefix'] ?? null,
+            $validated['is_system'] ?? false,
+        );
+
+        return response()->json(['data' => $category], 201);
+    }
+
+    public function deleteCategory(Request $request, string $name): JsonResponse
+    {
+        if (! app(\App\Services\AuthorizationService::class)->allows($request->user(), 'config.manage')) {
+            abort(403);
+        }
+
+        if (! $this->configuration->deleteCategory($name)) {
+            return response()->json(['message' => 'Category not found or cannot be deleted.'], 404);
+        }
+
+        return response()->json(['message' => 'Category deleted successfully.']);
     }
 }

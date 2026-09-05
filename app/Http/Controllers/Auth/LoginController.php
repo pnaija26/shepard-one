@@ -47,14 +47,24 @@ class LoginController extends Controller
         $credentials = $request->only('email', 'password');
         
         if (Auth::attempt($credentials)) {
-            // Authentication successful
             $request->session()->regenerate();
-            
+            session(['mfa_verified' => false]);
+
+            $user = Auth::user();
+
             Log::info('Authentication successful', [
                 'user_id' => Auth::id(),
                 'provider' => $provider,
             ]);
-            
+
+            if ($user->isPrivileged() && ! $user->hasMfaEnrolled()) {
+                return redirect()->route('mfa.setup');
+            }
+
+            if ($user->isPrivileged() && $user->hasMfaEnrolled()) {
+                return redirect()->route('mfa.verify');
+            }
+
             return redirect()->intended('/dashboard');
         }
 

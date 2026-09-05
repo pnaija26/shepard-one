@@ -35,6 +35,11 @@ use Illuminate\Validation\ValidationException;
  */
 final class MemberMovementService
 {
+    public function __construct(
+        private AuthorizationService $authorization,
+    ) {
+    }
+
     /**
      * Initiate a cross-branch movement for an existing centrally identified person.
      *
@@ -49,12 +54,6 @@ final class MemberMovementService
         string $effectiveDate,
         string $reason,
     ): MemberMovement {
-        // "An authorized administrator initiates a transfer" — non-privileged
-        // users cannot start movements at all (mirrors OrganizationController).
-        if (! $actor->isPrivileged()) {
-            throw new AuthorizationException('Unauthorized to initiate member movements.');
-        }
-
         $scope = BranchScope::for($actor);
 
         if ($scope->isDenied()) {
@@ -74,6 +73,10 @@ final class MemberMovementService
         // only move people out of a branch you manage. Unassigned persons (no
         // current branch) are an HQ-only action: a branch-scoped actor has no claim.
         $sourceBranchId = $person->branch_id !== null ? (int) $person->branch_id : null;
+
+        if (! $this->authorization->allows($actor, 'movements.initiate', $sourceBranchId)) {
+            throw new AuthorizationException('Unauthorized to initiate member movements.');
+        }
 
         if ($sourceBranchId === null) {
             if (! $scope->isChurchWide()) {
@@ -290,7 +293,9 @@ final class MemberMovementService
      */
     private function assertDecider(User $actor, MemberMovement $movement): void
     {
-        if (! $actor->isPrivileged()) {
+        $destinationId = $movement->destination_branch_id !== null ? (int) $movement->destination_branch_id : null;
+
+        if (! $this->authorization->allows($actor, 'movements.approve', $destinationId)) {
             throw new AuthorizationException('Unauthorized to decide on member movements.');
         }
 
@@ -305,8 +310,6 @@ final class MemberMovementService
         if ($scope->isChurchWide()) {
             return; // HQ approver.
         }
-
-        $destinationId = $movement->destination_branch_id !== null ? (int) $movement->destination_branch_id : null;
 
         if ($destinationId === null || ! $scope->includes($destinationId)) {
             throw new AuthorizationException(

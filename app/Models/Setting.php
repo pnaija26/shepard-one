@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Setting extends Model
 {
@@ -12,24 +13,34 @@ class Setting extends Model
     protected $fillable = [
         'key',
         'value',
+        'draft_value',
         'type',
         'category',
+        'branch_id',
         'is_public',
-        'description'
+        'is_locked',
+        'is_archived',
+        'description',
     ];
 
     protected $casts = [
-        'value' => 'array', // This will handle JSON values properly
         'is_public' => 'boolean',
+        'is_locked' => 'boolean',
+        'is_archived' => 'boolean',
     ];
 
-    public function scopeByCategory($query, $category)
+    public function references(): HasMany
     {
-        return $query->where('category', $category);
+        return $this->hasMany(SettingReference::class);
     }
 
-    public function scopeByKey($query, $key)
+    public function hasReferences(): bool
     {
-        return $query->where('key', $key);
+        return $this->references()->exists();
+    }
+
+    public function scopeActive($query)
+    {
+        return $query->where('is_archived', false);
     }
 }

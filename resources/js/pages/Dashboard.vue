@@ -2,7 +2,7 @@
   <div class="min-h-screen bg-canvas text-ink">
     <div v-if="drawerOpen" class="fixed inset-0 z-40 bg-ink/45 lg:hidden" aria-hidden="true" @click="drawerOpen = false"></div>
 
-    <Sidebar :drawer-open="drawerOpen" />
+    <Sidebar v-model:drawer-open="drawerOpen" />
 
     <div class="lg:pl-60">
       <header class="sticky top-0 z-30 border-b border-line bg-white/95 backdrop-blur">
@@ -59,7 +59,7 @@
         </div>
 
         <section class="mt-6 border border-line bg-white shadow-sm" aria-labelledby="activity-heading">
-          <div class="flex items-center justify-between border-b border-line px-4 py-4 sm:px-5"><div><h2 id="activity-heading" class="font-semibold">Recent activity</h2><p class="mt-0.5 text-xs text-muted">Latest recorded branch updates</p></div><button type="button" class="min-h-11 px-2 text-sm font-semibold text-brand hover:underline">View audit log</button></div>
+          <div class="flex items-center justify-between border-b border-line px-4 py-4 sm:px-5"><div><h2 id="activity-heading" class="font-semibold">Recent activity</h2><p class="mt-0.5 text-xs text-muted">Latest recorded branch updates</p></div><a href="/audit" class="min-h-11 px-2 text-sm font-semibold text-brand hover:underline">View audit log</a></div>
           <div class="overflow-x-auto"><table class="w-full min-w-[680px] text-left text-sm"><thead class="bg-canvas/75 text-xs font-medium text-muted"><tr><th class="px-5 py-3" scope="col">Activity</th><th class="px-5 py-3" scope="col">Area</th><th class="px-5 py-3" scope="col">Recorded by</th><th class="px-5 py-3" scope="col">Time</th><th class="px-5 py-3" scope="col">Status</th></tr></thead><tbody class="divide-y divide-line"><tr v-for="activity in activities" :key="activity.activity" class="hover:bg-canvas/50"><td class="px-5 py-3.5 font-medium">{{ activity.activity }}</td><td class="px-5 py-3.5 text-muted">{{ activity.area }}</td><td class="px-5 py-3.5 text-muted">{{ activity.actor }}</td><td class="px-5 py-3.5 text-muted">{{ activity.time }}</td><td class="px-5 py-3.5"><span class="inline-flex items-center gap-1.5 text-xs font-medium text-success"><CheckCircle2 :size="15" aria-hidden="true" />{{ activity.status }}</span></td></tr></tbody></table></div>
         </section>
       </main>

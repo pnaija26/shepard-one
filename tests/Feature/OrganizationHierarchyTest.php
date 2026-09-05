@@ -14,9 +14,7 @@ class OrganizationHierarchyTest extends TestCase
     public function test_organization_can_be_created_with_valid_hierarchy()
     {
         // Create a test user with privileged access
-        $user = User::factory()->create([
-            'roles' => ['admin']
-        ]);
+        $user = $this->privilegedUser();
         
         // Create a headquarters first
         $headquarters = Organization::create([
@@ -26,7 +24,7 @@ class OrganizationHierarchyTest extends TestCase
         ]);
 
         // Create a branch under headquarters (valid hierarchy)
-        $response = $this->actingAs($user)->post('/api/org/organizations', [
+        $response = $this->actingAsMfaVerified($user)->post('/api/org/organizations', [
             'name' => 'Branch A',
             'type' => 'branch',
             'identifier' => 'BRANCH-A-001',
@@ -43,9 +41,7 @@ class OrganizationHierarchyTest extends TestCase
     public function test_organization_cannot_be_created_with_invalid_hierarchy()
     {
         // Create a test user with privileged access
-        $user = User::factory()->create([
-            'roles' => ['admin']
-        ]);
+        $user = $this->privilegedUser();
         
         // Create a headquarters first
         $headquarters = Organization::create([
@@ -55,7 +51,7 @@ class OrganizationHierarchyTest extends TestCase
         ]);
 
         // Try to create a team under headquarters (invalid hierarchy)
-        $response = $this->actingAs($user)->post('/api/org/organizations', [
+        $response = $this->actingAsMfaVerified($user)->post('/api/org/organizations', [
             'name' => 'Invalid Team',
             'type' => 'team',
             'identifier' => 'TEAM-001',
@@ -69,9 +65,7 @@ class OrganizationHierarchyTest extends TestCase
     public function test_organization_can_be_created_with_valid_hierarchy_branch_to_department()
     {
         // Create a test user with privileged access
-        $user = User::factory()->create([
-            'roles' => ['admin']
-        ]);
+        $user = $this->privilegedUser();
         
         // Create a branch
         $branch = Organization::create([
@@ -82,7 +76,7 @@ class OrganizationHierarchyTest extends TestCase
 
         // Try to create a department under branch (valid hierarchy)
         // According to our rules, branch can have: campus, location, ministry, department
-        $response = $this->actingAs($user)->post('/api/org/organizations', [
+        $response = $this->actingAsMfaVerified($user)->post('/api/org/organizations', [
             'name' => 'Department Alpha',
             'type' => 'department',
             'identifier' => 'DEPT-ALPHA-001',
@@ -99,9 +93,7 @@ class OrganizationHierarchyTest extends TestCase
     public function test_organization_can_be_updated_with_valid_hierarchy()
     {
         // Create a test user with privileged access
-        $user = User::factory()->create([
-            'roles' => ['admin']
-        ]);
+        $user = $this->privilegedUser();
         
         // Create a branch first
         $branch = Organization::create([
@@ -119,7 +111,7 @@ class OrganizationHierarchyTest extends TestCase
         ]);
 
         // Update the department to have a different name (should work)
-        $response = $this->actingAs($user)->put('/api/org/organizations/' . $dept->id, [
+        $response = $this->actingAsMfaVerified($user)->put('/api/org/organizations/' . $dept->id, [
             'name' => 'Department Beta'
         ]);
 

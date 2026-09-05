@@ -53,6 +53,14 @@ class User extends Authenticatable
     ];
 
     /**
+     * Story 2.2: linked church member profile for self-service updates.
+     */
+    public function memberProfile(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(Member::class);
+    }
+
+    /**
      * The branch this user is assigned to (Story 1.4).
      */
     public function branch(): BelongsTo
@@ -123,7 +131,7 @@ class User extends Authenticatable
      */
     public function isPrivileged(): bool
     {
-        $privilegedRoles = ['admin', 'hq_admin', 'system_admin'];
+        $privilegedRoles = config('identity.security.mfa.privileged_roles', ['admin', 'hq_admin', 'system_admin']);
 
         if (isset($this->roles) && is_array($this->roles)) {
             foreach ($this->roles as $role) {

@@ -1,0 +1,217 @@
+# ShepardOne stack (dev or prod on the same VPS)
+#
+# Images are built by GitHub Actions and pushed to GHCR:
+#   APP_IMAGE=ghcr.io/<owner>/shepard-one
+#   NGINX_IMAGE=ghcr.io/<owner>/shepard-one-nginx
+#
+# Dual env on one VPS (isolated Compose projects + volumes):
+#   /var/www/prod  → COMPOSE_PROJECT_NAME=shepardone-prod  HTTP_PORT=127.0.0.1:8080
+#   /var/www/dev   → COMPOSE_PROJECT_NAME=shepardone-dev   HTTP_PORT=127.0.0.1:8081
+#
+#   docker compose --env-file .env.production up -d
+#   docker compose --env-file .env.dev up -d
+
+name: ${COMPOSE_PROJECT_NAME:-shepardone}
+
+x-app-env: &app-env
+  APP_NAME: ${APP_NAME:-ShepardOne}
+  APP_ENV: ${APP_ENV:-production}
+  APP_KEY: ${APP_KEY}
+  APP_DEBUG: ${APP_DEBUG:-false}
+  APP_URL: ${APP_URL}
+  APP_LOCALE: ${APP_LOCALE:-en}
+  APP_FALLBACK_LOCALE: ${APP_FALLBACK_LOCALE:-en}
+  LOG_CHANNEL: ${LOG_CHANNEL:-stack}
+  LOG_LEVEL: ${LOG_LEVEL:-warning}
+  DB_CONNECTION: ${DB_CONNECTION:-mysql}
+  DB_HOST: ${DB_HOST:-mysql}
+  DB_PORT: ${DB_PORT:-3306}
+  DB_DATABASE: ${DB_DATABASE:-shepardone}
+  DB_USERNAME: ${DB_USERNAME:-shepard}
+  DB_PASSWORD: ${DB_PASSWORD}
+  SESSION_DRIVER: ${SESSION_DRIVER:-redis}
+  SESSION_LIFETIME: ${SESSION_LIFETIME:-120}
+  CACHE_STORE: ${CACHE_STORE:-redis}
+  QUEUE_CONNECTION: ${QUEUE_CONNECTION:-redis}
+  BROADCAST_CONNECTION: ${BROADCAST_CONNECTION:-log}
+  FILESYSTEM_DISK: ${FILESYSTEM_DISK:-local}
+  REDIS_CLIENT: ${REDIS_CLIENT:-phpredis}
+  REDIS_HOST: ${REDIS_HOST:-redis}
+  REDIS_PASSWORD: ${REDIS_PASSWORD:-null}
+  REDIS_PORT: ${REDIS_PORT:-6379}
+  MAIL_MAILER: ${MAIL_MAILER:-log}
+  MAIL_HOST: ${MAIL_HOST:-}
+  MAIL_PORT: ${MAIL_PORT:-}
+  MAIL_USERNAME: ${MAIL_USERNAME:-}
+  MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+  MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-noreply@example.com}
+  MAIL_FROM_NAME: ${MAIL_FROM_NAME:-ShepardOne}
+  HYBRID_APP_ID: ${HYBRID_APP_ID:-church.shepardone.app}
+  HYBRID_APP_NAME: ${HYBRID_APP_NAME:-ShepardOne}
+  HYBRID_API_VERSION: ${HYBRID_API_VERSION:-1}
+  HYBRID_REQUIRE_HTTPS: ${HYBRID_REQUIRE_HTTPS:-true}
+  HYBRID_ACCESS_TOKEN_TTL: ${HYBRID_ACCESS_TOKEN_TTL:-60}
+  HYBRID_REFRESH_TOKEN_TTL_DAYS: ${HYBRID_REFRESH_TOKEN_TTL_DAYS:-30}
+  HYBRID_MAX_DEVICES: ${HYBRID_MAX_DEVICES:-10}
+  VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
+  VITE_API_VERSION: ${VITE_API_VERSION:-1}
+  VITE_HYBRID_REQUIRE_HTTPS: ${VITE_HYBRID_REQUIRE_HTTPS:-true}
+  RUN_OPTIMIZE: ${RUN_OPTIMIZE:-true}
+  TRUSTED_PROXIES: ${TRUSTED_PROXIES:-*}
+
+services:
+  nginx:
+    image: ${NGINX_IMAGE:-ghcr.io/OWNER/shepard-one-nginx}:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: nginx
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    volumes:
+      - storage_data:/var/www/html/storage:ro
+      # Optional TLS certs (uncomment + expose 443):
+      # - ./docker/certs:/etc/nginx/certs:ro
+    depends_on:
+      app:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - shepard
+
+  app:
+    image: ${APP_IMAGE:-ghcr.io/OWNER/shepard-one}:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: app
+    restart: unless-stopped
+    environment:
+      <<: *app-env
+      CONTAINER_ROLE: app
+      RUN_MIGRATIONS: ${RUN_MIGRATIONS:-false}
+    volumes:
+      - storage_data:/var/www/html/storage
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - shepard
+
+  queue:
+    image: ${APP_IMAGE:-ghcr.io/OWNER/shepard-one}:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: app
+    restart: unless-stopped
+    environment:
+      <<: *app-env
+      CONTAINER_ROLE: queue
+      RUN_OPTIMIZE: "true"
+      QUEUE_SLEEP: ${QUEUE_SLEEP:-3}
+      QUEUE_TRIES: ${QUEUE_TRIES:-3}
+      QUEUE_TIMEOUT: ${QUEUE_TIMEOUT:-90}
+      QUEUE_MAX_TIME: ${QUEUE_MAX_TIME:-3600}
+      QUEUE_MEMORY: ${QUEUE_MEMORY:-256}
+    volumes:
+      - storage_data:/var/www/html/storage
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      app:
+        condition: service_started
+    networks:
+      - shepard
+
+  scheduler:
+    image: ${APP_IMAGE:-ghcr.io/OWNER/shepard-one}:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: app
+    restart: unless-stopped
+    environment:
+      <<: *app-env
+      CONTAINER_ROLE: scheduler
+      RUN_OPTIMIZE: "true"
+    volumes:
+      - storage_data:/var/www/html/storage
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      app:
+        condition: service_started
+    networks:
+      - shepard
+
+  migrate:
+    image: ${APP_IMAGE:-ghcr.io/OWNER/shepard-one}:${IMAGE_TAG:-latest}
+    profiles: ["migrate"]
+    environment:
+      <<: *app-env
+      CONTAINER_ROLE: migrate
+      RUN_MIGRATIONS: "true"
+      RUN_OPTIMIZE: "false"
+    volumes:
+      - storage_data:/var/www/html/storage
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - shepard
+    restart: "no"
+
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE:-shepardone}
+      MYSQL_USER: ${DB_USERNAME:-shepard}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    networks:
+      - shepard
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "allkeys-lru"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    networks:
+      - shepard
+
+volumes:
+  mysql_data:
+  redis_data:
+  storage_data:
+
+networks:
+  shepard:
+    driver: bridge

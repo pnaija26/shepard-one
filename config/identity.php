@@ -68,7 +68,15 @@ return [
     'security' => [
         'lockout_attempts' => env('IDENTITY_LOCKOUT_ATTEMPTS', 5),
         'lockout_duration' => env('IDENTITY_LOCKOUT_DURATION', 30), // minutes
-        'mfa_required' => env('IDENTITY_MFA_REQUIRED', false),
         'recovery_codes' => env('IDENTITY_RECOVERY_CODES', true),
+
+        // Story 1.2 — MFA policy (change here, not in source code).
+        'mfa' => [
+            // When true, every user must enroll and verify MFA.
+            'required_for_all' => env('IDENTITY_MFA_REQUIRED', false),
+            // When true, users with a privileged role must enroll and verify MFA.
+            'required_for_privileged' => env('IDENTITY_MFA_REQUIRED_FOR_PRIVILEGED', true),
+            'privileged_roles' => ['admin', 'hq_admin', 'system_admin'],
+        ],
     ],
 ];

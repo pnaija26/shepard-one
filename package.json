@@ -4,7 +4,11 @@
     "type": "module",
     "scripts": {
         "build": "vite build",
-        "dev": "vite"
+        "dev": "vite",
+        "hybrid:build": "vite build --config vite.hybrid.config.js",
+        "hybrid:sync": "npm run hybrid:build && npx cap sync",
+        "hybrid:android": "npm run hybrid:sync && npx cap open android",
+        "hybrid:ios": "npm run hybrid:sync && npx cap open ios"
     },
     "devDependencies": {
         "@tailwindcss/vite": "^4.0.0",
@@ -18,9 +22,20 @@
         "@laravel/multiplex": "^0.4.1"
     },
     "dependencies": {
+        "@capacitor/android": "^8.5.0",
+        "@capacitor/app": "^8.1.1",
+        "@capacitor/cli": "^8.5.0",
+        "@capacitor/core": "^8.5.0",
+        "@capacitor/ios": "^8.5.0",
+        "@capacitor/network": "^8.0.1",
+        "@capacitor/preferences": "^8.0.1",
+        "@capacitor/splash-screen": "^8.0.2",
+        "@capacitor/status-bar": "^8.0.3",
         "@lucide/vue": "^1.31.0",
         "axios": "^1.19.0",
         "pinia": "^4.0.3",
+        "qrcode": "^1.5.4",
+        "vue": "^3.5.42",
         "vue-router": "^5.2.0"
     }
 }

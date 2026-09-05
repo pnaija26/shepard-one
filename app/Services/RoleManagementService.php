@@ -80,12 +80,12 @@ class RoleManagementService
     /**
      * Update a role's metadata and/or replace its permission set.
      */
-    public function update(User $actor, Role $role, array $attrs): Role
+    public function update(User $actor, Role $role, array $attrs, array $options = []): Role
     {
         // AC4: stripping the super-admin flag off the last viable super role is
         // a lockout — blocked (or break-glass) before anything else happens.
         if (array_key_exists('is_super_admin', $attrs) && ! $attrs['is_super_admin'] && $role->is_super_admin) {
-            $this->assertNotLastSuperAdmin($actor, $role, 'update');
+            $this->assertNotLastSuperAdmin($actor, $role, 'update', $options);
         }
 
         // AC1: re-validate the full proposed permission set against actor scope.

@@ -3,6 +3,8 @@ import { createPinia } from 'pinia';
 import App from './App.vue';
 import router from './router';
 import { useAuthStore } from './stores/auth';
+import { credentialStore } from './mobile/secureStorage';
+import { initConnectivityMonitor } from './mobile/offlineQueue';
 
 // Create the app instance
 const app = createApp(App);
@@ -12,6 +14,9 @@ const pinia = createPinia();
 app.use(pinia);
 
 const bootstrap = async () => {
+	await credentialStore.hydrate();
+	await initConnectivityMonitor();
+
 	const authStore = useAuthStore(pinia);
 	const authenticatedUser = window.__AUTH_USER__;
 

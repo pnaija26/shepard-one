@@ -3,82 +3,183 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditEvent;
+use App\Services\AuditService;
+use App\Services\DeviceCredentialException;
+use App\Services\DeviceCredentialService;
+use App\Services\MfaPolicy;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
-    /**
-     * Login a user and return an API token.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\JsonResponse
-     */
+    public function __construct(
+        private MfaPolicy $policy,
+        private AuditService $audit,
+        private DeviceCredentialService $devices,
+    ) {
+    }
+
     public function login(Request $request)
     {
-        // Validate request
         $request->validate([
             'email' => 'required|email',
             'password' => 'required',
+            'client' => 'nullable|string|max:32',
+            'device_id' => 'nullable|string|max:64',
+            'device_name' => 'nullable|string|max:120',
+            'platform' => 'nullable|string|max:32',
         ]);
 
-        // Check if the user exists and credentials are correct
         $credentials = $request->only('email', 'password');
         $provider = Auth::guard()->getProvider();
         $user = $provider->retrieveByCredentials($credentials);
 
-        if (!$user || !$provider->validateCredentials($user, $credentials)) {
+        if (! $user || ! $provider->validateCredentials($user, $credentials)) {
+            $this->audit->record(
+                actor: null,
+                action: AuditEvent::ACTION_AUTH_LOGIN_FAILED,
+                request: $request,
+                module: 'auth',
+                after: ['email' => $request->input('email')],
+            );
+
             throw ValidationException::withMessages([
                 'email' => ['The provided credentials are incorrect.'],
             ]);
         }
 
-        // Check if MFA is required for this user (privileged roles)
-        if ($user->isPrivileged() && $user->hasMfaEnrolled() && !session('mfa_verified')) {
-            // For now, just return a flag that MFA is needed
-            // In a real implementation, we'd need to handle MFA verification flow
+        if ($this->policy->requiresEnrollment($user)) {
+            $token = $user->createToken('mfa-enrollment', ['mfa-enrollment'])->plainTextToken;
+
             return response()->json([
-                'message' => 'MFA required',
-                'requires_mfa' => true,
-                'user' => $user
+                'message' => 'MFA enrollment is required before privileged access.',
+                'requires_mfa_enrollment' => true,
+                'access_token' => $token,
+                'token_type' => 'Bearer',
+                'user' => $user,
             ]);
         }
 
-        // Generate API token
-        $token = $user->createToken('auth-token')->plainTextToken;
+        if ($this->policy->requiresVerification($user)) {
+            $token = $user->createToken('mfa-pending', ['mfa-pending'])->plainTextToken;
+
+            return response()->json([
+                'message' => 'A valid second factor is required for privileged access.',
+                'requires_mfa' => true,
+                'access_token' => $token,
+                'token_type' => 'Bearer',
+                'user' => $user,
+            ]);
+        }
+
+        $hybrid = $this->devices->isHybridClient($request);
+
+        try {
+            if ($hybrid) {
+                $issued = $this->devices->issue($user, $request);
+            } else {
+                $issued = [
+                    'access_token' => $user->createToken('auth-token')->plainTextToken,
+                    'token_type' => 'Bearer',
+                ];
+            }
+        } catch (DeviceCredentialException $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+                'code' => $exception->codeKey,
+            ], $exception->getCode() ?: 422);
+        }
+
+        $this->audit->record(
+            actor: $user,
+            action: AuditEvent::ACTION_AUTH_LOGIN,
+            request: $request,
+            module: 'auth',
+            after: [
+                'method' => 'password',
+                'client' => $hybrid ? 'hybrid' : 'web',
+            ],
+        );
 
         return response()->json([
-            'access_token' => $token,
-            'token_type' => 'Bearer',
-            'user' => $user
+            ...$issued,
+            'user' => $user,
         ]);
     }
 
-    /**
-     * Logout the current user.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\JsonResponse
-     */
     public function logout(Request $request)
     {
-        // Revoke the token that was used to authenticate the request
-        $request->user()->currentAccessToken()?->delete();
+        $user = $request->user();
+
+        $this->audit->record(
+            actor: $user,
+            action: AuditEvent::ACTION_AUTH_LOGOUT,
+            request: $request,
+            module: 'auth',
+        );
+
+        $this->devices->revokeForCurrentAccess($user, $request);
+
+        $user->currentAccessToken()?->delete();
 
         return response()->json([
-            'message' => 'Successfully logged out'
+            'message' => 'Successfully logged out',
         ]);
     }
 
-    /**
-     * Get the authenticated user.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\JsonResponse
-     */
     public function user(Request $request)
     {
         return response()->json($request->user());
+    }
+
+    public function refreshDevice(Request $request): JsonResponse
+    {
+        $request->validate([
+            'refresh_token' => 'required|string',
+            'device_id' => 'required|string|max:64',
+        ]);
+
+        try {
+            $rotated = $this->devices->refresh($request);
+
+            return response()->json($rotated);
+        } catch (DeviceCredentialException $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+                'code' => $exception->codeKey,
+            ], $exception->getCode() ?: 401);
+        }
+    }
+
+    public function revokeDevice(Request $request): JsonResponse
+    {
+        $request->validate([
+            'device_id' => 'required|string|max:64',
+        ]);
+
+        try {
+            $credential = $this->devices->revokeByDevice($request->user(), $request->input('device_id'), $request);
+
+            return response()->json([
+                'message' => 'Device credential revoked.',
+                'data' => [
+                    'device_id' => $credential->device_id,
+                    'revoked_at' => $credential->revoked_at?->toIso8601String(),
+                ],
+            ]);
+        } catch (DeviceCredentialException $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+                'code' => $exception->codeKey,
+            ], $exception->getCode() ?: 422);
+        }
+    }
+
+    public function hybridFoundation(): JsonResponse
+    {
+        return response()->json(['data' => $this->devices->foundationManifest()]);
     }
 }

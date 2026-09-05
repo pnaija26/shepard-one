@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Organization;
+use App\Services\AuthorizationService;
 use App\Services\BranchScope;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\JsonResponse;
@@ -12,6 +13,11 @@ use Illuminate\Validation\ValidationException;
 
 class OrganizationController extends Controller
 {
+    public function __construct(
+        private AuthorizationService $authorization,
+    ) {
+    }
+
     /**
      * Display a listing of the organizations.
      *
@@ -22,6 +28,8 @@ class OrganizationController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
+        $this->assertCan($request, 'organizations.read');
+
         $scope = $this->effectiveScope($request);
 
         // Return a flat list of organizations within scope; the SPA builds the
@@ -44,13 +52,9 @@ class OrganizationController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
-        // Check if the user has permission to create organizations
         $user = $request->user();
-        if (! $user->isPrivileged()) {
-            return response()->json([
-                'message' => 'Unauthorized to create organizations'
-            ], 403);
-        }
+        $parentId = $request->input('parent_id');
+        $this->assertCan($request, 'organizations.write', $parentId ? (int) $parentId : null);
 
         $scope = $this->effectiveScope($request);
 
@@ -61,6 +65,17 @@ class OrganizationController extends Controller
             'identifier' => 'required|string|unique:organizations,identifier|max:255',
             'parent_id' => 'nullable|exists:organizations,id',
             'description' => 'nullable|string',
+            'location' => 'nullable|array',
+            'location.address_line1' => 'nullable|string|max:255',
+            'location.address_line2' => 'nullable|string|max:255',
+            'location.city' => 'nullable|string|max:120',
+            'location.state' => 'nullable|string|max:120',
+            'location.postal_code' => 'nullable|string|max:32',
+            'location.country' => 'nullable|string|max:64',
+            'primary_contact' => 'nullable|array',
+            'primary_contact.name' => 'nullable|string|max:120',
+            'primary_contact.email' => 'nullable|email|max:191',
+            'primary_contact.phone' => 'nullable|string|max:32',
             'attributes' => 'nullable|array',
             'is_active' => 'boolean',
         ]);
@@ -104,6 +119,8 @@ class OrganizationController extends Controller
      */
     public function show(Request $request, Organization $organization): JsonResponse
     {
+        $this->assertCan($request, 'organizations.read', $organization->id);
+
         // Story 1.4: cross-branch access is denied (403), never leaked.
         $this->effectiveScope($request)->assertIncludes($organization);
 
@@ -115,13 +132,7 @@ class OrganizationController extends Controller
      */
     public function update(Request $request, Organization $organization): JsonResponse
     {
-        // Check if the user has permission to update organizations
-        $user = $request->user();
-        if (! $user->isPrivileged()) {
-            return response()->json([
-                'message' => 'Unauthorized to update organizations'
-            ], 403);
-        }
+        $this->assertCan($request, 'organizations.write', $organization->id);
 
         // Story 1.4: the target must be inside the user's effective scope.
         $scope = $this->effectiveScope($request);
@@ -134,6 +145,17 @@ class OrganizationController extends Controller
             'identifier' => 'string|unique:organizations,identifier,' . $organization->id . '|max:255',
             'parent_id' => 'nullable|exists:organizations,id',
             'description' => 'nullable|string',
+            'location' => 'nullable|array',
+            'location.address_line1' => 'nullable|string|max:255',
+            'location.address_line2' => 'nullable|string|max:255',
+            'location.city' => 'nullable|string|max:120',
+            'location.state' => 'nullable|string|max:120',
+            'location.postal_code' => 'nullable|string|max:32',
+            'location.country' => 'nullable|string|max:64',
+            'primary_contact' => 'nullable|array',
+            'primary_contact.name' => 'nullable|string|max:120',
+            'primary_contact.email' => 'nullable|email|max:191',
+            'primary_contact.phone' => 'nullable|string|max:32',
             'attributes' => 'nullable|array',
             'is_active' => 'boolean',
         ]);
@@ -188,13 +210,7 @@ class OrganizationController extends Controller
      */
     public function destroy(Request $request, Organization $organization): JsonResponse
     {
-        // Check if the user has permission to delete organizations
-        $user = $request->user();
-        if (! $user->isPrivileged()) {
-            return response()->json([
-                'message' => 'Unauthorized to delete organizations'
-            ], 403);
-        }
+        $this->assertCan($request, 'organizations.delete', $organization->id);
 
         // Story 1.4: the target must be inside the user's effective scope.
         $this->effectiveScope($request)->assertIncludes($organization);
@@ -237,6 +253,13 @@ class OrganizationController extends Controller
         }
 
         return $scope;
+    }
+
+    private function assertCan(Request $request, string $action, ?int $orgId = null): void
+    {
+        if (! $this->authorization->allows($request->user(), $action, $orgId)) {
+            throw new AuthorizationException('Forbidden.');
+        }
     }
 
     /**

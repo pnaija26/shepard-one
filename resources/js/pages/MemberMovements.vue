@@ -2,7 +2,7 @@
   <div class="min-h-screen bg-canvas text-ink">
     <div v-if="drawerOpen" class="fixed inset-0 z-40 bg-ink/45 lg:hidden" aria-hidden="true" @click="drawerOpen = false"></div>
 
-    <Sidebar :drawer-open="drawerOpen" />
+    <Sidebar v-model:drawer-open="drawerOpen" />
 
     <div class="lg:pl-60">
       <header class="sticky top-0 z-30 border-b border-line bg-white/95 backdrop-blur">

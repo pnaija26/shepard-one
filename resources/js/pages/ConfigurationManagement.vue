@@ -1,232 +1,169 @@
 <template>
-  <div class="p-6">
-    <h1 class="text-2xl font-bold mb-6">Platform Configuration</h1>
-    
-    <!-- Category Tabs -->
-    <div class="mb-6">
-      <div class="flex space-x-2 border-b">
-        <button
-          v-for="category in categories"
-          :key="category.name"
-          @click="selectedCategory = category.name"
-          :class="['px-4 py-2 font-medium', selectedCategory === category.name ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500 hover:text-gray-700']"
-        >
-          {{ category.name }}
-        </button>
-      </div>
-    </div>
+  <div class="min-h-screen bg-canvas text-ink">
+    <div v-if="drawerOpen" class="fixed inset-0 z-40 bg-ink/45 lg:hidden" aria-hidden="true" @click="drawerOpen = false"></div>
 
-    <!-- Loading State -->
-    <div v-if="loading" class="flex justify-center items-center py-12">
-      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-    </div>
+    <Sidebar v-model:drawer-open="drawerOpen" />
 
-    <!-- Error State -->
-    <div v-else-if="error" class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-      <p class="text-red-700">{{ error }}</p>
-    </div>
+    <div class="lg:pl-60">
+      <header class="sticky top-0 z-30 border-b border-line bg-white/95 backdrop-blur">
+        <div class="flex min-h-18 items-center gap-3 px-4 sm:px-6 lg:px-8">
+          <button type="button" class="grid size-11 shrink-0 place-items-center rounded-md border border-line text-ink hover:bg-canvas lg:hidden" @click="drawerOpen = true">
+            <Menu :size="20" aria-hidden="true" />
+          </button>
+          <div class="min-w-0 flex-1">
+            <p class="truncate text-sm font-semibold text-ink">Configuration</p>
+            <p class="truncate text-xs text-muted">Governed platform settings</p>
+          </div>
+        </div>
+      </header>
 
-    <!-- Settings Form -->
-    <div v-else class="bg-white rounded-lg shadow overflow-hidden">
-      <div class="px-6 py-4 border-b border-gray-200">
-        <h2 class="text-lg font-medium text-gray-900">
-          {{ selectedCategory || 'All Settings' }} Configuration
-        </h2>
-        <p class="mt-1 text-sm text-gray-500">
-          Manage platform settings for {{ selectedCategory || 'all categories' }}
+      <main class="px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <section class="mb-6 border-b border-line pb-6">
+          <p class="mb-1 text-xs font-semibold uppercase tracking-wider text-brand">Platform configuration</p>
+          <h1 class="font-serif text-3xl font-bold">Settings</h1>
+          <p class="mt-1 text-sm text-muted">Manage operational settings without developer intervention</p>
+        </section>
+
+        <p v-if="configStore.error" class="mb-4 rounded-md border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger" role="alert">
+          {{ configStore.error }}
         </p>
-      </div>
 
-      <div class="divide-y divide-gray-200">
-        <div v-for="setting in filteredSettings" :key="setting.key" class="px-6 py-4">
-          <div class="flex items-start">
-            <div class="flex-1">
-              <label class="block text-sm font-medium text-gray-700 mb-1">
-                {{ setting.key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) }}
-              </label>
-              <p class="text-sm text-gray-500 mb-2">{{ setting.description }}</p>
-              
-              <div v-if="setting.type === 'boolean'">
-                <switch-input
-                  :model-value="setting.value"
-                  @update:model-value="updateSetting(setting.key, $event)"
-                />
+        <div v-if="!configStore.loading && configStore.categories.length > 0" class="mb-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            :class="categoryClass('')"
+            @click="configStore.selectedCategory = ''"
+          >
+            All
+          </button>
+          <button
+            v-for="category in configStore.categories"
+            :key="category.name"
+            type="button"
+            :class="categoryClass(category.name)"
+            @click="configStore.selectedCategory = category.name"
+          >
+            {{ category.name }}
+          </button>
+        </div>
+
+        <div v-if="configStore.loading" class="text-sm text-muted">Loading settings…</div>
+
+        <div v-else-if="configStore.filteredSettings.length === 0" class="rounded-md border border-line bg-white p-8 text-center">
+          <p class="font-medium text-ink">No settings to display</p>
+          <p class="mt-1 text-sm text-muted">
+            <template v-if="configStore.settings.length === 0">
+              Platform settings have not been seeded yet. Run
+              <code class="rounded bg-canvas px-1 py-0.5 text-xs">php artisan db:seed --class=ConfigurationSeeder</code>
+              to load defaults.
+            </template>
+            <template v-else>
+              No settings match the selected category. Try another category or choose All.
+            </template>
+          </p>
+        </div>
+
+        <div v-else class="space-y-4">
+          <div v-for="setting in configStore.filteredSettings" :key="setting.key" class="border border-line bg-white p-4 shadow-sm">
+            <div class="flex items-start justify-between gap-4">
+              <div class="min-w-0 flex-1">
+                <p class="font-medium">{{ setting.key }}</p>
+                <p class="text-xs text-muted">{{ setting.description }}</p>
+                <p v-if="setting.is_locked" class="mt-1 text-xs font-semibold text-danger">Centrally locked</p>
+                <p v-if="setting.draft_value !== null" class="mt-1 text-xs text-brand">Draft pending publish</p>
               </div>
-              <div v-else-if="setting.type === 'integer'">
+              <div class="flex gap-2">
+                <button
+                  type="button"
+                  class="rounded-md border border-line px-3 py-1.5 text-xs font-semibold text-ink hover:bg-canvas disabled:opacity-50"
+                  :disabled="setting.is_locked || configStore.saving"
+                  @click="saveDraft(setting)"
+                >
+                  Save draft
+                </button>
+                <button
+                  type="button"
+                  class="rounded-md bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-hover disabled:opacity-50"
+                  :disabled="setting.is_locked || configStore.saving || setting.draft_value === null"
+                  @click="publish(setting.key)"
+                >
+                  Publish
+                </button>
+              </div>
+            </div>
+
+            <div class="mt-3 grid gap-3 sm:grid-cols-2">
+              <div>
+                <label class="text-xs font-medium text-muted">Active value</label>
                 <input
-                  type="number"
-                  :value="setting.value"
-                  @input="updateSetting(setting.key, $event.target.value)"
-                  class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  :value="displayValue(setting.value, setting.type)"
+                  type="text"
+                  readonly
+                  class="mt-1 block w-full rounded-md border border-line bg-canvas/50 px-3 py-2 text-sm"
                 />
               </div>
-              <div v-else-if="setting.type === 'json'">
-                <textarea
-                  :value="JSON.stringify(setting.value, null, 2)"
-                  @input="updateSetting(setting.key, JSON.parse($event.target.value))"
-                  rows="5"
-                  class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm font-mono text-sm"
-                />
-              </div>
-              <div v-else>
+              <div>
+                <label class="text-xs font-medium text-muted">Draft value</label>
                 <input
-                  :type="setting.type === 'string' ? 'text' : setting.type"
-                  :value="setting.value"
-                  @input="updateSetting(setting.key, $event.target.value)"
-                  class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  v-model="drafts[setting.key]"
+                  type="text"
+                  :disabled="setting.is_locked"
+                  class="mt-1 block w-full rounded-md border border-line bg-white px-3 py-2 text-sm disabled:bg-canvas/50"
                 />
               </div>
             </div>
           </div>
         </div>
-      </div>
-
-      <div class="px-6 py-4 bg-gray-50 flex justify-end">
-        <button
-          @click="saveSettings"
-          :disabled="saving"
-          class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-        >
-          {{ saving ? 'Saving...' : 'Save Settings' }}
-        </button>
-      </div>
-    </div>
-
-    <!-- Category Management -->
-    <div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
-      <div class="px-6 py-4 border-b border-gray-200">
-        <h2 class="text-lg font-medium text-gray-900">Configuration Categories</h2>
-        <p class="mt-1 text-sm text-gray-500">Manage categories for organizing settings</p>
-      </div>
-
-      <div class="px-6 py-4">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Category Name</label>
-            <input
-              v-model="newCategory.name"
-              type="text"
-              placeholder="Enter category name"
-              class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-            />
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Key Prefix</label>
-            <input
-              v-model="newCategory.keyPrefix"
-              type="text"
-              placeholder="Enter key prefix (optional)"
-              class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-            />
-          </div>
-        </div>
-        <div class="mb-4">
-          <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
-          <textarea
-            v-model="newCategory.description"
-            rows="2"
-            placeholder="Enter category description (optional)"
-            class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-          />
-        </div>
-        <button
-          @click="createCategory"
-          class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-        >
-          Create Category
-        </button>
-      </div>
+      </main>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
-import { useAuthStore } from '../stores/auth'
+import { reactive, onMounted, ref, watch } from 'vue'
 import Sidebar from '@/components/Sidebar.vue'
-import apiClient from '@/api/client'
+import { Menu } from '@lucide/vue'
+import { useConfigurationStore } from '../stores/configuration'
 
-const authStore = useAuthStore()
-const settings = ref([])
-const categories = ref([])
-const loading = ref(false)
-const saving = ref(false)
-const error = ref(null)
-const selectedCategory = ref('')
-const newCategory = ref({
-  name: '',
-  description: '',
-  keyPrefix: ''
-})
+const configStore = useConfigurationStore()
+const drawerOpen = ref(false)
+const drafts = reactive({})
 
-// Filter settings by selected category
-const filteredSettings = computed(() => {
-  if (!selectedCategory.value) return settings.value
-  return settings.value.filter(setting => setting.category === selectedCategory.value)
-})
+const categoryClass = (name) => [
+  'rounded-md px-3 py-1.5 text-sm font-medium',
+  configStore.selectedCategory === name ? 'bg-brand text-white' : 'bg-canvas text-muted hover:text-ink',
+]
 
-const fetchSettings = async () => {
-  loading.value = true
-  error.value = null
-  
-  try {
-    const response = await apiClient.get('/config')
-    settings.value = response.data.data || []
-    
-    // Fetch categories
-    const categoryResponse = await apiClient.get('/config/categories')
-    categories.value = categoryResponse.data.data || []
-  } catch (err) {
-    error.value = 'Failed to load configuration settings'
-    console.error('Error fetching settings:', err)
-  } finally {
-    loading.value = false
-  }
+const displayValue = (value, type) => {
+  if (type === 'json') return JSON.stringify(value)
+  if (type === 'boolean') return value ? 'true' : 'false'
+  return value ?? ''
 }
 
-const updateSetting = (key, value) => {
-  const setting = settings.value.find(s => s.key === key)
-  if (setting) {
-    setting.value = value
-  }
+const syncDrafts = () => {
+  configStore.filteredSettings.forEach((setting) => {
+    drafts[setting.key] = displayValue(setting.draft_value ?? setting.value, setting.type)
+  })
 }
 
-const saveSettings = async () => {
-  saving.value = true
-  error.value = null
-  
-  try {
-    // In a real implementation, we would save individual settings
-    // For now, this is just a placeholder for demonstration
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    alert('Settings saved successfully!')
-  } catch (err) {
-    error.value = 'Failed to save settings'
-    console.error('Error saving settings:', err)
-  } finally {
-    saving.value = false
-  }
+const saveDraft = async (setting) => {
+  let value = drafts[setting.key]
+  if (setting.type === 'integer') value = Number(value)
+  if (setting.type === 'boolean') value = value === 'true' || value === true
+  if (setting.type === 'json') value = JSON.parse(value)
+  await configStore.stageSetting(setting.key, value)
+  syncDrafts()
 }
 
-const createCategory = async () => {
-  if (!newCategory.value.name.trim()) {
-    alert('Please enter a category name')
-    return
-  }
-
-  try {
-    await apiClient.post('/config/categories', newCategory.value)
-    // Refresh categories
-    await fetchSettings()
-    newCategory.value = { name: '', description: '', keyPrefix: '' }
-    alert('Category created successfully!')
-  } catch (err) {
-    error.value = 'Failed to create category'
-    console.error('Error creating category:', err)
-  }
+const publish = async (key) => {
+  await configStore.publishSetting(key)
+  syncDrafts()
 }
 
-onMounted(() => {
-  fetchSettings()
+watch(() => configStore.filteredSettings, syncDrafts, { deep: true })
+
+onMounted(async () => {
+  await configStore.fetchAll()
+  syncDrafts()
 })
 </script>

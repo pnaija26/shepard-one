@@ -1,0 +1,21 @@
+{
+  "appId": "church.shepardone.app",
+  "appName": "ShepardOne",
+  "webDir": "mobile/www",
+  "android": {
+    "allowMixedContent": false
+  },
+  "ios": {
+    "contentInset": "automatic"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": true,
+      "backgroundColor": "#123b2a"
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#123b2a"
+    }
+  }
+}

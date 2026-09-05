@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Organization;
+use App\Models\RoleAssignment;
 use App\Models\RolePermission;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
@@ -29,6 +30,61 @@ class AuthorizationService
     /** Cache key prefix — stable so targeted invalidation is trivial. */
     public const CACHE_PREFIX = 'authz:user:';
 
+    /** @var string[] Actions granted to legacy privileged users (pre-1.6 data). */
+    private const LEGACY_PRIVILEGED_ACTIONS = [
+        'roles.manage',
+        'organizations.read',
+        'organizations.write',
+        'organizations.delete',
+        'movements.read',
+        'movements.initiate',
+        'movements.approve',
+        'config.read',
+        'config.manage',
+        'audit.read',
+        'audit.export',
+        'members.read',
+        'members.write',
+        'members.archive',
+        'members.preferences',
+        'members.sensitive',
+        'members.changes.review',
+        'members.lifecycle.read',
+        'members.lifecycle.manage',
+        'members.lifecycle.approve',
+        'households.read',
+        'households.manage',
+        'members.duplicates.review',
+        'members.duplicates.merge',
+        'membership_card.scan',
+        'directory.read',
+        'directory.export',
+        'directory.staff',
+        'visitors.read',
+        'visitors.write',
+        'visitors.export',
+        'visitors.sensitive',
+        'onboarding.read',
+        'onboarding.manage',
+        'attendance.read',
+        'attendance.write',
+        'attendance.exceptions.read',
+        'attendance.exceptions.manage',
+        'followups.read',
+        'followups.manage',
+        'followups.work',
+        'followups.escalate',
+        'services.read',
+        'services.manage',
+        'events.read',
+        'events.manage',
+        'events.budget.read',
+        'events.registrations.read',
+        'events.registrations.manage',
+        'events.registrations.self',
+        'events.admit.scan',
+    ];
+
     /**
      * Does the user hold an effective grant for `action` in the given context?
      *
@@ -49,7 +105,23 @@ class AuthorizationService
             }
         }
 
+        // Migration bridge: users with legacy JSON roles but no scoped assignments
+        // keep working until migrated to role_assignments (Stories 1.1–1.5 tests).
+        if (! $this->hasActiveAssignments($user) && $this->legacyAllows($user, $action, $orgId)) {
+            return true;
+        }
+
         return false;
+    }
+
+    /**
+     * Background/export/search paths must call this — never bypass the service.
+     */
+    public function allowsOrFail(?User $user, string $action, ?int $orgId = null, array $context = []): void
+    {
+        if (! $this->allows($user, $action, $orgId, $context)) {
+            throw new \Illuminate\Auth\Access\AuthorizationException('Forbidden.');
+        }
     }
 
     /**
@@ -108,6 +180,38 @@ class AuthorizationService
     private function trackedUserIds(): array
     {
         return \App\Models\RoleAssignment::query()->pluck('user_id')->unique()->values()->all();
+    }
+
+    private function hasActiveAssignments(User $user): bool
+    {
+        return RoleAssignment::query()
+            ->where('user_id', $user->id)
+            ->where(function ($q) {
+                $q->whereNull('expires_at')
+                    ->orWhere('expires_at', '>', now());
+            })
+            ->exists();
+    }
+
+    private function legacyAllows(User $user, string $action, ?int $orgId): bool
+    {
+        if (! $user->isPrivileged() || ! in_array($action, self::LEGACY_PRIVILEGED_ACTIONS, true)) {
+            return false;
+        }
+
+        if ($user->isChurchWide()) {
+            return true;
+        }
+
+        if ($orgId === null) {
+            return true;
+        }
+
+        try {
+            return BranchScope::for($user)->includes($orgId);
+        } catch (BranchScopeException) {
+            return false;
+        }
     }
 
     // ------------------------------------------------------------------

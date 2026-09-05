@@ -1,49 +1,53 @@
 import axios from 'axios';
+import { apiBaseUrl, apiVersion, apiVersionHeaderName, assertHttpsBaseUrl } from '../mobile/apiConfig';
+import { credentialStore } from '../mobile/secureStorage';
 
-// Create axios instance with default configuration
+assertHttpsBaseUrl(apiBaseUrl());
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: apiBaseUrl(),
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
-  }
+    [apiVersionHeaderName()]: apiVersion(),
+  },
 });
 
-// Request interceptor to add auth token
 api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('access_token');
+  async (config) => {
+    const token = credentialStore.getAccessToken() || localStorage.getItem('access_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    config.headers[apiVersionHeaderName()] = apiVersion();
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error),
 );
 
-// Response interceptor to handle errors
 api.interceptors.response.use(
-  (response) => {
-    return response;
-  },
-  (error) => {
+  (response) => response,
+  async (error) => {
     if (error.response?.status === 401) {
-      // Handle unauthorized access - redirect to login
+      await credentialStore.clear();
       localStorage.removeItem('access_token');
-      window.location.href = '/login';
+      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
-  }
+  },
 );
 
-// Extract a human-readable message from an axios/Laravel validation error.
 export function extractApiError(error, fallback = 'Something went wrong') {
   const data = error?.response?.data;
 
-  // Laravel validation errors: first field's first message is the most useful.
+  if (data && typeof data === 'object' && data.errors && typeof data.errors === 'object' && !Array.isArray(data.errors)) {
+    const firstField = Object.values(data.errors)[0];
+    if (Array.isArray(firstField) && firstField[0]) return firstField[0];
+  }
+
   if (data && typeof data === 'object' && Array.isArray(data.errors)) {
     const firstField = Object.values(data.errors)[0];
     if (firstField?.[0]) return firstField[0];
@@ -51,7 +55,6 @@ export function extractApiError(error, fallback = 'Something went wrong') {
 
   if (typeof data?.message === 'string' && data.message) return data.message;
   if (error?.message && error.message !== 'Request failed with status code') {
-    // Strip the trailing " (500)" style suffix axios appends.
     return error.message.replace(/\s*\(\d{3}\)$/, '');
   }
 

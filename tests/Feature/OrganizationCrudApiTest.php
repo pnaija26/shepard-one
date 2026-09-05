@@ -13,7 +13,7 @@ class OrganizationCrudApiTest extends TestCase
 
     private function admin(): User
     {
-        return User::factory()->create(['roles' => ['admin']]);
+        return $this->privilegedUser();
     }
 
     public function test_index_returns_all_organizations()
@@ -22,7 +22,7 @@ class OrganizationCrudApiTest extends TestCase
         Organization::create(['name' => 'HQ', 'type' => 'headquarters', 'identifier' => 'IDX-HQ-1']);
         Organization::create(['name' => 'Branch A', 'type' => 'branch', 'identifier' => 'IDX-BR-1']);
 
-        $response = $this->actingAs($user)->getJson('/api/org/organizations');
+        $response = $this->actingAsMfaVerified($user)->getJson('/api/org/organizations');
 
         $response->assertStatus(200)
             ->assertJsonCount(2);
@@ -32,7 +32,7 @@ class OrganizationCrudApiTest extends TestCase
     {
         $user = $this->admin();
 
-        $response = $this->actingAs($user)->postJson('/api/org/organizations', [
+        $response = $this->actingAsMfaVerified($user)->postJson('/api/org/organizations', [
             'name' => 'New Branch',
             'type' => 'branch',
             'identifier' => 'IDX-NEW-1',
@@ -43,12 +43,42 @@ class OrganizationCrudApiTest extends TestCase
         $this->assertDatabaseHas('organizations', ['identifier' => 'IDX-NEW-1']);
     }
 
+    public function test_store_persists_location_and_primary_contact(): void
+    {
+        $user = $this->admin();
+
+        $response = $this->actingAsMfaVerified($user)->postJson('/api/org/organizations', [
+            'name' => 'Eastside Branch',
+            'type' => 'branch',
+            'identifier' => 'IDX-EAST-1',
+            'location' => [
+                'address_line1' => '12 Church Road',
+                'city' => 'Lagos',
+                'state' => 'LA',
+                'country' => 'Nigeria',
+            ],
+            'primary_contact' => [
+                'name' => 'Pastor Ada',
+                'email' => 'ada@eastside.example',
+                'phone' => '08012345678',
+            ],
+        ]);
+
+        $response->assertStatus(201)
+            ->assertJsonPath('location.city', 'Lagos')
+            ->assertJsonPath('primary_contact.name', 'Pastor Ada');
+
+        $this->assertDatabaseHas('organizations', [
+            'identifier' => 'IDX-EAST-1',
+        ]);
+    }
+
     public function test_update_changes_fields()
     {
         $user = $this->admin();
         $org = Organization::create(['name' => 'Old Name', 'type' => 'branch', 'identifier' => 'IDX-UPD-1']);
 
-        $response = $this->actingAs($user)->putJson('/api/org/organizations/' . $org->id, [
+        $response = $this->actingAsMfaVerified($user)->putJson('/api/org/organizations/' . $org->id, [
             'name' => 'New Name',
             'description' => 'Updated description',
         ]);
@@ -64,7 +94,7 @@ class OrganizationCrudApiTest extends TestCase
         $hq = Organization::create(['name' => 'HQ', 'type' => 'headquarters', 'identifier' => 'IDX-HQ-2']);
         $branch = Organization::create(['name' => 'Branch B', 'type' => 'branch', 'identifier' => 'IDX-BR-2']);
 
-        $response = $this->actingAs($user)->putJson('/api/org/organizations/' . $branch->id, [
+        $response = $this->actingAsMfaVerified($user)->putJson('/api/org/organizations/' . $branch->id, [
             'parent_id' => $hq->id,
         ]);
 
@@ -84,7 +114,7 @@ class OrganizationCrudApiTest extends TestCase
         ]);
 
         // Setting the branch's parent to its own child would create a cycle.
-        $response = $this->actingAs($user)->putJson('/api/org/organizations/' . $branch->id, [
+        $response = $this->actingAsMfaVerified($user)->putJson('/api/org/organizations/' . $branch->id, [
             'parent_id' => $dept->id,
         ]);
 
@@ -97,7 +127,7 @@ class OrganizationCrudApiTest extends TestCase
         $user = $this->admin();
         $org = Organization::create(['name' => 'Solo', 'type' => 'branch', 'identifier' => 'IDX-SOLO-1']);
 
-        $response = $this->actingAs($user)->putJson('/api/org/organizations/' . $org->id, [
+        $response = $this->actingAsMfaVerified($user)->putJson('/api/org/organizations/' . $org->id, [
             'parent_id' => $org->id,
         ]);
 
@@ -109,7 +139,7 @@ class OrganizationCrudApiTest extends TestCase
         $user = $this->admin();
         $org = Organization::create(['name' => 'Leaf', 'type' => 'branch', 'identifier' => 'IDX-LEAF-1']);
 
-        $response = $this->actingAs($user)->deleteJson('/api/org/organizations/' . $org->id);
+        $response = $this->actingAsMfaVerified($user)->deleteJson('/api/org/organizations/' . $org->id);
 
         $response->assertStatus(200)
             ->assertJsonPath('message', 'Organization deleted successfully');
@@ -127,7 +157,7 @@ class OrganizationCrudApiTest extends TestCase
             'parent_id' => $branch->id,
         ]);
 
-        $response = $this->actingAs($user)->deleteJson('/api/org/organizations/' . $branch->id);
+        $response = $this->actingAsMfaVerified($user)->deleteJson('/api/org/organizations/' . $branch->id);
 
         $response->assertStatus(422)
             ->assertJsonValidationErrors('parent_id');
@@ -138,7 +168,7 @@ class OrganizationCrudApiTest extends TestCase
     {
         $user = User::factory()->create(['roles' => ['member']]);
 
-        $response = $this->actingAs($user)->postJson('/api/org/organizations', [
+        $response = $this->actingAsMfaVerified($user)->postJson('/api/org/organizations', [
             'name' => 'Nope',
             'type' => 'branch',
             'identifier' => 'IDX-NOPE-1',

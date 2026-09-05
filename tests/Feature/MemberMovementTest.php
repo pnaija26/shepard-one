@@ -55,12 +55,12 @@ class MemberMovementTest extends TestCase
 
     private function hqAdmin(): User
     {
-        return User::factory()->create(['roles' => ['admin'], 'branch_id' => null]);
+        return $this->privilegedUser(['branch_id' => null]);
     }
 
     private function branchAdmin(Organization $branch): User
     {
-        return User::factory()->create(['roles' => ['admin'], 'branch_id' => $branch->id]);
+        return $this->privilegedUser(['branch_id' => $branch->id]);
     }
 
     // ------------------------------------------------------------------
@@ -75,7 +75,7 @@ class MemberMovementTest extends TestCase
 
         $usersBefore = User::count();
 
-        $response = $this->actingAs($hq)->postJson('/api/org/movements', [
+        $response = $this->actingAsMfaVerified($hq)->postJson('/api/org/movements', [
             'person_id' => $person->id,
             'destination_branch_id' => $t['branchB']->id,
             'effective_date' => Carbon::today()->addWeek()->toDateString(),
@@ -102,7 +102,7 @@ class MemberMovementTest extends TestCase
         $adminA = $this->branchAdmin($t['branchA']);
         $person = User::factory()->create(['branch_id' => $t['branchA']->id]);
 
-        $response = $this->actingAs($adminA)->postJson('/api/org/movements', [
+        $response = $this->actingAsMfaVerified($adminA)->postJson('/api/org/movements', [
             'person_id' => $person->id,
             'destination_branch_id' => $t['branchB']->id,
             'effective_date' => Carbon::today()->addWeek()->toDateString(),
@@ -120,7 +120,7 @@ class MemberMovementTest extends TestCase
         $adminA = $this->branchAdmin($t['branchA']);
         $personB = User::factory()->create(['branch_id' => $t['branchB']->id]);
 
-        $response = $this->actingAs($adminA)->postJson('/api/org/movements', [
+        $response = $this->actingAsMfaVerified($adminA)->postJson('/api/org/movements', [
             'person_id' => $personB->id,
             'destination_branch_id' => $t['branchA']->id,
             'effective_date' => Carbon::today()->addWeek()->toDateString(),
@@ -138,7 +138,7 @@ class MemberMovementTest extends TestCase
 
         // Branch-scoped actor has no claim over an unassigned person.
         $adminA = $this->branchAdmin($t['branchA']);
-        $this->actingAs($adminA)->postJson('/api/org/movements', [
+        $this->actingAsMfaVerified($adminA)->postJson('/api/org/movements', [
             'person_id' => $unassigned->id,
             'destination_branch_id' => $t['branchB']->id,
             'effective_date' => Carbon::today()->addWeek()->toDateString(),
@@ -147,7 +147,7 @@ class MemberMovementTest extends TestCase
 
         // HQ may.
         $hq = $this->hqAdmin();
-        $this->actingAs($hq)->postJson('/api/org/movements', [
+        $this->actingAsMfaVerified($hq)->postJson('/api/org/movements', [
             'person_id' => $unassigned->id,
             'destination_branch_id' => $t['branchB']->id,
             'effective_date' => Carbon::today()->addWeek()->toDateString(),
@@ -161,7 +161,7 @@ class MemberMovementTest extends TestCase
         $member = User::factory()->create(['branch_id' => $t['branchA']->id]); // no admin role
         $person = User::factory()->create(['branch_id' => $t['branchA']->id]);
 
-        $response = $this->actingAs($member)->postJson('/api/org/movements', [
+        $response = $this->actingAsMfaVerified($member)->postJson('/api/org/movements', [
             'person_id' => $person->id,
             'destination_branch_id' => $t['branchB']->id,
             'effective_date' => Carbon::today()->addWeek()->toDateString(),
@@ -178,7 +178,7 @@ class MemberMovementTest extends TestCase
         $hq = $this->hqAdmin();
         $person = User::factory()->create(['branch_id' => $t['branchA']->id]);
 
-        $response = $this->actingAs($hq)->postJson('/api/org/movements', [
+        $response = $this->actingAsMfaVerified($hq)->postJson('/api/org/movements', [
             'person_id' => $person->id,
             'destination_branch_id' => $t['branchA']->id, // already there
             'effective_date' => Carbon::today()->addWeek()->toDateString(),
@@ -196,7 +196,7 @@ class MemberMovementTest extends TestCase
         $person = User::factory()->create(['branch_id' => $t['branchA']->id]);
 
         // A campus is not a branch — association lives at branch level.
-        $response = $this->actingAs($hq)->postJson('/api/org/movements', [
+        $response = $this->actingAsMfaVerified($hq)->postJson('/api/org/movements', [
             'person_id' => $person->id,
             'destination_branch_id' => $t['campusB1']->id,
             'effective_date' => Carbon::today()->addWeek()->toDateString(),
@@ -226,14 +226,14 @@ class MemberMovementTest extends TestCase
             'source' => 'seed',
         ]);
 
-        $movement = $this->actingAs($hq)->postJson('/api/org/movements', [
+        $movement = $this->actingAsMfaVerified($hq)->postJson('/api/org/movements', [
             'person_id' => $person->id,
             'destination_branch_id' => $t['branchB']->id,
             'effective_date' => Carbon::today()->toDateString(), // already arrived
             'reason' => 'Relocation.',
         ])->assertStatus(201)->json('id');
 
-        $this->actingAs($hq)
+        $this->actingAsMfaVerified($hq)
             ->postJson("/api/org/movements/{$movement}/approve", ['reason' => 'Approved by HQ.'])
             ->assertStatus(200);
 
@@ -263,14 +263,14 @@ class MemberMovementTest extends TestCase
         $hq = $this->hqAdmin();
         $person = User::factory()->create(['branch_id' => $t['branchA']->id]);
 
-        $movement = $this->actingAs($hq)->postJson('/api/org/movements', [
+        $movement = $this->actingAsMfaVerified($hq)->postJson('/api/org/movements', [
             'person_id' => $person->id,
             'destination_branch_id' => $t['branchB']->id,
             'effective_date' => Carbon::today()->addWeek()->toDateString(), // future
             'reason' => 'Scheduled relocation.',
         ])->assertStatus(201)->json('id');
 
-        $this->actingAs($hq)
+        $this->actingAsMfaVerified($hq)
             ->postJson("/api/org/movements/{$movement}/approve", ['reason' => 'ok'])
             ->assertStatus(200);
 
@@ -295,7 +295,7 @@ class MemberMovementTest extends TestCase
         $approverB = $this->branchAdmin($t['branchB']); // destination approver
         $person = User::factory()->create(['branch_id' => $t['branchA']->id]);
 
-        $movement = $this->actingAs($hq)->postJson('/api/org/movements', [
+        $movement = $this->actingAsMfaVerified($hq)->postJson('/api/org/movements', [
             'person_id' => $person->id,
             'destination_branch_id' => $t['branchB']->id,
             'effective_date' => Carbon::today()->toDateString(),
@@ -303,7 +303,7 @@ class MemberMovementTest extends TestCase
         ])->assertStatus(201)->json('id');
 
         // The destination branch (not HQ) decides.
-        $this->actingAs($approverB)
+        $this->actingAsMfaVerified($approverB)
             ->postJson("/api/org/movements/{$movement}/approve", ['reason' => 'Accepted by Branch B.'])
             ->assertStatus(200);
 
@@ -321,14 +321,14 @@ class MemberMovementTest extends TestCase
         $adminC = $this->branchAdmin($branchC);
         $person = User::factory()->create(['branch_id' => $t['branchA']->id]);
 
-        $movement = $this->actingAs($hq)->postJson('/api/org/movements', [
+        $movement = $this->actingAsMfaVerified($hq)->postJson('/api/org/movements', [
             'person_id' => $person->id,
             'destination_branch_id' => $t['branchB']->id,
             'effective_date' => Carbon::today()->toDateString(),
             'reason' => 'x',
         ])->assertStatus(201)->json('id');
 
-        $this->actingAs($adminC)
+        $this->actingAsMfaVerified($adminC)
             ->postJson("/api/org/movements/{$movement}/approve", ['reason' => 'not my branch'])
             ->assertStatus(403);
 
@@ -351,18 +351,18 @@ class MemberMovementTest extends TestCase
             'source' => 'seed',
         ]);
 
-        $movement = $this->actingAs($hq)->postJson('/api/org/movements', [
+        $movement = $this->actingAsMfaVerified($hq)->postJson('/api/org/movements', [
             'person_id' => $person->id,
             'destination_branch_id' => $t['branchB']->id,
             'effective_date' => Carbon::today()->toDateString(),
             'reason' => 'Relocation.',
         ])->assertStatus(201)->json('id');
 
-        $this->actingAs($hq)
+        $this->actingAsMfaVerified($hq)
             ->postJson("/api/org/movements/{$movement}/approve", ['reason' => 'Approved.'])
             ->assertStatus(200);
 
-        $response = $this->actingAs($hq)->getJson("/api/org/movements/{$movement}");
+        $response = $this->actingAsMfaVerified($hq)->getJson("/api/org/movements/{$movement}");
 
         $response->assertStatus(200)
             ->assertJsonPath('data.status', 'applied')
@@ -389,14 +389,14 @@ class MemberMovementTest extends TestCase
         $approverB = $this->branchAdmin($t['branchB']);
         $person = User::factory()->create(['branch_id' => $t['branchA']->id]);
 
-        $movement = $this->actingAs($hq)->postJson('/api/org/movements', [
+        $movement = $this->actingAsMfaVerified($hq)->postJson('/api/org/movements', [
             'person_id' => $person->id,
             'destination_branch_id' => $t['branchB']->id,
             'effective_date' => Carbon::today()->addWeek()->toDateString(),
             'reason' => 'Requested transfer.',
         ])->assertStatus(201)->json('id');
 
-        $this->actingAs($approverB)
+        $this->actingAsMfaVerified($approverB)
             ->postJson("/api/org/movements/{$movement}/reject", ['reason' => 'Capacity full this term.'])
             ->assertStatus(200);
 
@@ -424,10 +424,10 @@ class MemberMovementTest extends TestCase
             'reason' => 'first request',
         ];
 
-        $this->actingAs($hq)->postJson('/api/org/movements', $payload)->assertStatus(201);
+        $this->actingAsMfaVerified($hq)->postJson('/api/org/movements', $payload)->assertStatus(201);
 
         // Second request while one is open -> 409, association unchanged.
-        $response = $this->actingAs($hq)->postJson('/api/org/movements', [
+        $response = $this->actingAsMfaVerified($hq)->postJson('/api/org/movements', [
             ...$payload,
             'reason' => 'duplicate attempt',
         ]);
@@ -444,19 +444,19 @@ class MemberMovementTest extends TestCase
         $approverB = $this->branchAdmin($t['branchB']);
         $person = User::factory()->create(['branch_id' => $t['branchA']->id]);
 
-        $movement = $this->actingAs($hq)->postJson('/api/org/movements', [
+        $movement = $this->actingAsMfaVerified($hq)->postJson('/api/org/movements', [
             'person_id' => $person->id,
             'destination_branch_id' => $t['branchB']->id,
             'effective_date' => Carbon::today()->addWeek()->toDateString(),
             'reason' => 'x',
         ])->assertStatus(201)->json('id');
 
-        $this->actingAs($approverB)
+        $this->actingAsMfaVerified($approverB)
             ->postJson("/api/org/movements/{$movement}/reject", ['reason' => 'no'])
             ->assertStatus(200);
 
         // Re-deciding an already decided movement fails secure.
-        $this->actingAs($hq)
+        $this->actingAsMfaVerified($hq)
             ->postJson("/api/org/movements/{$movement}/approve", ['reason' => 'late approval'])
             ->assertStatus(409);
 
@@ -474,7 +474,7 @@ class MemberMovementTest extends TestCase
         // Movement A -> B (touches Branch A) and one entirely outside it.
         $personA = User::factory()->create(['branch_id' => $t['branchA']->id]);
 
-        $m1 = $this->actingAs($hq)->postJson('/api/org/movements', [
+        $m1 = $this->actingAsMfaVerified($hq)->postJson('/api/org/movements', [
             'person_id' => $personA->id,
             'destination_branch_id' => $t['branchB']->id,
             'effective_date' => Carbon::today()->addWeek()->toDateString(),
@@ -486,7 +486,7 @@ class MemberMovementTest extends TestCase
             'name' => 'Branch C', 'type' => 'branch', 'identifier' => 'IDX-BR-C', 'parent_id' => $t['hq']->id,
         ]);
         $personC = User::factory()->create(['branch_id' => $branchC->id]);
-        $this->actingAs($hq)->postJson('/api/org/movements', [
+        $this->actingAsMfaVerified($hq)->postJson('/api/org/movements', [
             'person_id' => $personC->id,
             'destination_branch_id' => $t['branchB']->id,
             'effective_date' => Carbon::today()->addWeek()->toDateString(),
@@ -494,7 +494,7 @@ class MemberMovementTest extends TestCase
         ])->assertStatus(201);
 
         // Branch A admin sees only movements touching their subtree.
-        $response = $this->actingAs($adminA)->getJson('/api/org/movements');
+        $response = $this->actingAsMfaVerified($adminA)->getJson('/api/org/movements');
         $ids = collect($response->json('data'))->pluck('id')->all();
 
         $response->assertStatus(200)
@@ -504,7 +504,7 @@ class MemberMovementTest extends TestCase
         $this->assertSame([$m1], $ids);
 
         // HQ sees everything (consolidated).
-        $hqIds = collect($this->actingAs($hq)->getJson('/api/org/movements')->json('data'))->pluck('id')->all();
+        $hqIds = collect($this->actingAsMfaVerified($hq)->getJson('/api/org/movements')->json('data'))->pluck('id')->all();
         $this->assertCount(2, $hqIds);
     }
 }

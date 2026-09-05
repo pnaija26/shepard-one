@@ -14,6 +14,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class AuthorizationAuditLog extends Model
 {
+    protected $table = 'authorization_audit_log';
+
     public const EVENT_ROLE_CREATED = 'role.created';
     public const EVENT_ROLE_UPDATED = 'role.updated';
     public const EVENT_ROLE_DELETED = 'role.deleted';

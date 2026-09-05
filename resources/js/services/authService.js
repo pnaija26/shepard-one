@@ -1,25 +1,33 @@
 import api from '../api/client';
+import { credentialStore } from '../mobile/secureStorage';
+import { getPlatform, hybridClientLabel, isNativePlatform } from '../mobile/platform';
 
 export const authService = {
-  /**
-   * Login a user
-   * @param {Object} credentials - User login credentials
-   * @returns {Promise<Object>} Authentication response
-   */
   async login(credentials) {
     try {
-      // Make sure we're calling the correct API endpoint
-      const response = await api.post('/auth/login', credentials);
+      const deviceId = await credentialStore.ensureDeviceId();
+      const payload = {
+        ...credentials,
+        client: hybridClientLabel() === 'hybrid' || isNativePlatform() ? 'hybrid' : (credentials.client || 'web'),
+        device_id: deviceId,
+        device_name: credentials.device_name || `${getPlatform()} ShepardOne`,
+        platform: isNativePlatform() ? getPlatform() : (credentials.platform || 'web-hybrid'),
+      };
+
+      // Only send hybrid device fields when explicitly hybrid.
+      if (payload.client !== 'hybrid') {
+        delete payload.device_id;
+        delete payload.device_name;
+        delete payload.platform;
+      }
+
+      const response = await api.post('/auth/login', payload);
       return response.data;
     } catch (error) {
       throw error.response?.data || error;
     }
   },
 
-  /**
-   * Logout current user
-   * @returns {Promise<Object>} Logout response
-   */
   async logout() {
     try {
       const response = await api.post('/auth/logout');
@@ -29,10 +37,27 @@ export const authService = {
     }
   },
 
-  /**
-   * Get current authenticated user
-   * @returns {Promise<Object>} User data
-   */
+  async refreshDevice() {
+    const refreshToken = credentialStore.getRefreshToken();
+    const deviceId = credentialStore.getDeviceId();
+    if (!refreshToken || !deviceId) {
+      throw new Error('No device credential available to refresh.');
+    }
+
+    const response = await api.post('/auth/device/refresh', {
+      refresh_token: refreshToken,
+      device_id: deviceId,
+    });
+    return response.data;
+  },
+
+  async revokeDevice(deviceId = null) {
+    const response = await api.post('/auth/device/revoke', {
+      device_id: deviceId || credentialStore.getDeviceId(),
+    });
+    return response.data;
+  },
+
   async getUser() {
     try {
       const response = await api.get('/auth/user');
@@ -42,34 +67,25 @@ export const authService = {
     }
   },
 
-  /**
-   * Check if user is authenticated
-   * @returns {boolean} Whether user is authenticated
-   */
   isAuthenticated() {
-    return !!localStorage.getItem('access_token');
+    return !!credentialStore.getAccessToken() || !!localStorage.getItem('access_token');
   },
 
-  /**
-   * Get access token from localStorage
-   * @returns {string|null} Access token
-   */
   getAccessToken() {
-    return localStorage.getItem('access_token');
+    return credentialStore.getAccessToken() || localStorage.getItem('access_token');
   },
 
-  /**
-   * Set access token in localStorage
-   * @param {string} token - Access token
-   */
-  setAccessToken(token) {
-    localStorage.setItem('access_token', token);
+  async setAccessToken(token, refreshToken = null) {
+    await credentialStore.setTokens({ accessToken: token, refreshToken });
+    if (token) {
+      localStorage.setItem('access_token', token);
+    } else {
+      localStorage.removeItem('access_token');
+    }
   },
 
-  /**
-   * Remove access token from localStorage
-   */
-  removeAccessToken() {
+  async removeAccessToken() {
+    await credentialStore.clear();
     localStorage.removeItem('access_token');
-  }
+  },
 };

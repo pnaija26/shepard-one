@@ -15,11 +15,15 @@ class Organization extends Model
         'parent_id',
         'branch_id',
         'description',
+        'location',
+        'primary_contact',
         'attributes',
         'is_active'
     ];
 
     protected $casts = [
+        'location' => 'array',
+        'primary_contact' => 'array',
         'attributes' => 'array',
         'is_active' => 'boolean'
     ];

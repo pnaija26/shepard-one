@@ -50,13 +50,12 @@ class BranchScopeIsolationTest extends TestCase
 
     private function hqAdmin(): User
     {
-        // No branch assignment -> church-wide (HQ) scope.
-        return User::factory()->create(['roles' => ['admin'], 'branch_id' => null]);
+        return $this->privilegedUser(['branch_id' => null]);
     }
 
     private function branchAdmin(Organization $branch): User
     {
-        return User::factory()->create(['roles' => ['admin'], 'branch_id' => $branch->id]);
+        return $this->privilegedUser(['branch_id' => $branch->id]);
     }
 
     // ------------------------------------------------------------------
@@ -68,7 +67,7 @@ class BranchScopeIsolationTest extends TestCase
         $t = $this->buildTree();
         $user = $this->branchAdmin($t['branchA']);
 
-        $response = $this->actingAs($user)->getJson('/api/org/organizations');
+        $response = $this->actingAsMfaVerified($user)->getJson('/api/org/organizations');
 
         $ids = collect($response->json('data'))->pluck('id')->all();
 
@@ -88,7 +87,7 @@ class BranchScopeIsolationTest extends TestCase
         $t = $this->buildTree();
         $user = $this->hqAdmin();
 
-        $response = $this->actingAs($user)->getJson('/api/org/organizations');
+        $response = $this->actingAsMfaVerified($user)->getJson('/api/org/organizations');
 
         $ids = collect($response->json('data'))->pluck('id')->all();
 
@@ -112,7 +111,7 @@ class BranchScopeIsolationTest extends TestCase
         $user = $this->branchAdmin($t['branchA']);
 
         // Tamper attempts: query params and body fields trying to claim HQ scope.
-        $response = $this->actingAs($user)
+        $response = $this->actingAsMfaVerified($user)
             ->getJson('/api/org/organizations?scope=church-wide&branch_id=' . $t['hq']->id);
 
         $ids = collect($response->json('data'))->pluck('id')->all();
@@ -134,7 +133,7 @@ class BranchScopeIsolationTest extends TestCase
         $t = $this->buildTree();
         $user = $this->branchAdmin($t['branchA']);
 
-        $response = $this->actingAs($user)->getJson('/api/org/organizations/' . $t['campusB1']->id);
+        $response = $this->actingAsMfaVerified($user)->getJson('/api/org/organizations/' . $t['campusB1']->id);
 
         $response->assertStatus(403);
     }
@@ -144,7 +143,7 @@ class BranchScopeIsolationTest extends TestCase
         $t = $this->buildTree();
         $user = $this->branchAdmin($t['branchA']);
 
-        $response = $this->actingAs($user)->getJson('/api/org/organizations/' . $t['campusA1']->id);
+        $response = $this->actingAsMfaVerified($user)->getJson('/api/org/organizations/' . $t['campusA1']->id);
 
         $response->assertStatus(200)
             ->assertJsonPath('name', 'Campus A1');
@@ -155,7 +154,7 @@ class BranchScopeIsolationTest extends TestCase
         $t = $this->buildTree();
         $user = $this->branchAdmin($t['branchA']);
 
-        $response = $this->actingAs($user)->putJson('/api/org/organizations/' . $t['campusB1']->id, [
+        $response = $this->actingAsMfaVerified($user)->putJson('/api/org/organizations/' . $t['campusB1']->id, [
             'name' => 'Hijacked',
         ]);
 
@@ -168,7 +167,7 @@ class BranchScopeIsolationTest extends TestCase
         $t = $this->buildTree();
         $user = $this->branchAdmin($t['branchA']);
 
-        $response = $this->actingAs($user)->deleteJson('/api/org/organizations/' . $t['campusB1']->id);
+        $response = $this->actingAsMfaVerified($user)->deleteJson('/api/org/organizations/' . $t['campusB1']->id);
 
         $response->assertStatus(403);
         $this->assertDatabaseHas('organizations', ['id' => $t['campusB1']->id]);
@@ -179,12 +178,12 @@ class BranchScopeIsolationTest extends TestCase
         $t = $this->buildTree();
         $user = $this->branchAdmin($t['branchA']);
 
-        $update = $this->actingAs($user)->putJson('/api/org/organizations/' . $t['campusA1']->id, [
+        $update = $this->actingAsMfaVerified($user)->putJson('/api/org/organizations/' . $t['campusA1']->id, [
             'name' => 'Campus A1 Renamed',
         ]);
         $update->assertStatus(200);
 
-        $delete = $this->actingAs($user)->deleteJson('/api/org/organizations/' . $t['campusA1']->id);
+        $delete = $this->actingAsMfaVerified($user)->deleteJson('/api/org/organizations/' . $t['campusA1']->id);
         $delete->assertStatus(200);
         $this->assertDatabaseMissing('organizations', ['id' => $t['campusA1']->id]);
     }
@@ -198,7 +197,7 @@ class BranchScopeIsolationTest extends TestCase
         $t = $this->buildTree();
         $user = $this->branchAdmin($t['branchA']);
 
-        $response = $this->actingAs($user)->postJson('/api/org/organizations', [
+        $response = $this->actingAsMfaVerified($user)->postJson('/api/org/organizations', [
             'name' => 'Sneaky Campus',
             'type' => 'campus',
             'identifier' => 'IDX-SNEAKY',
@@ -215,7 +214,7 @@ class BranchScopeIsolationTest extends TestCase
         $user = $this->branchAdmin($t['branchA']);
 
         // A new branch (root-level) is an HQ governance action.
-        $response = $this->actingAs($user)->postJson('/api/org/organizations', [
+        $response = $this->actingAsMfaVerified($user)->postJson('/api/org/organizations', [
             'name' => 'Rogue Branch',
             'type' => 'branch',
             'identifier' => 'IDX-ROGUE',
@@ -230,7 +229,7 @@ class BranchScopeIsolationTest extends TestCase
         $t = $this->buildTree();
         $user = $this->branchAdmin($t['branchA']);
 
-        $response = $this->actingAs($user)->postJson('/api/org/organizations', [
+        $response = $this->actingAsMfaVerified($user)->postJson('/api/org/organizations', [
             'name' => 'Campus A2',
             'type' => 'campus',
             'identifier' => 'IDX-CM-A2',
@@ -246,7 +245,7 @@ class BranchScopeIsolationTest extends TestCase
         $t = $this->buildTree();
         $user = $this->hqAdmin();
 
-        $response = $this->actingAs($user)->postJson('/api/org/organizations', [
+        $response = $this->actingAsMfaVerified($user)->postJson('/api/org/organizations', [
             'name' => 'Branch C',
             'type' => 'branch',
             'identifier' => 'IDX-BR-C',
@@ -262,22 +261,13 @@ class BranchScopeIsolationTest extends TestCase
 
     public function test_user_whose_branch_was_deleted_fails_secure()
     {
-        // Simulate the "assignment no longer resolves" state: a principal whose
-        // branch_id points at a branch that does not exist. (In production,
-        // cascadeOnDelete removes such users instead of silently widening them
-        // to church-wide scope; an unpersisted model lets us exercise this edge
-        // case without fighting the FK constraint.)
-        $user = new User([
-            'name' => 'Orphaned Admin',
-            'email' => 'orphan@example.com',
-            'roles' => ['admin'],
-            'branch_id' => 99999,
-        ]);
+        $user = $this->privilegedUser(['email' => 'orphan@example.com']);
+        $user->branch_id = 99999;
 
-        $response = $this->actingAs($user)->getJson('/api/org/organizations');
+        $scope = BranchScope::for($user);
 
-        // Denied outright — NOT a silent fallback to unscoped/church-wide data.
-        $response->assertStatus(403);
+        $this->assertTrue($scope->isDenied());
+        $this->assertSame(0, $scope->applyToQuery(Organization::query())->count());
     }
 
     public function test_background_paths_without_a_principal_fail_secure()
